@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE & Editors
+.vscode/
+.vscode/**
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+.DS_Store
+
+# Logs
+*.log
+app.log
+logs/
+*.out
+
+# Configuración local
+.env
+.env.local
+.env.*.local
+
+# Arduino IDE
+.pio
+.pioenvs/
+.piolibdeps/
+*.o
+*.a
+.dep.d
+*.elf
+*.eep
+*.elf.map
+
+# OS
+Thumbs.db
+.DS_Store
+*.swp
+*~
+
+# Data files (local testing)
+data/*.json
+!data/.gitkeep
+
+# Node (opcional)
+node_modules/
+npm-debug.log
+package-lock.json
+
+# Arduino
+build/
+.build/
+
+# Data local (no versionado)
+data/*.json
+
+# Caché del navegador
+.cache/
+
+# Otros
+.venv
+*.bak

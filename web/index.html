@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mezclador ESP32 v5</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg:      #07090d;
+  --panel:   #0d1117;
+  --border:  #1a2030;
+  --border2: #252f42;
+  --accent:  #00d4ff;
+  --accent2: #00ff9d;
+  --warn:    #ff9f43;
+  --danger:  #ff3860;
+  --text:    #c8d6e5;
+  --dim:     #3d4f6b;
+  --red:     #ff4757;
+  --yellow:  #ffd32a;
+  --blue:    #4dabf7;
+  --white-c: #f0e6d3;
+  --clean:   #00d4ff;
+  --extract: #b48ef7;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,.012) 2px, rgba(0,212,255,.012) 4px);
+  pointer-events: none; z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none; z-index: 0;
+}
+
+.wrap {
+  position: relative; z-index: 1;
+  max-width: 1120px; margin: 0 auto; padding: 20px;
+}
+
+/* ══ EMERGENCY ══ */
+#em-overlay { display:none; position:fixed; inset:0; z-index:50; background:rgba(255,56,96,.06); pointer-events:none; animation:pulse-bg 1s infinite; }
+#em-overlay.on { display:block; }
+@keyframes pulse-bg { 50% { background:rgba(255,56,96,.18); } }
+#em-banner { display:none; background:rgba(255,56,96,.10); border:2px solid var(--danger); padding:14px 20px; margin-bottom:16px; align-items:center; justify-content:space-between; gap:12px; clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%); }
+#em-banner.on { display:flex; }
+.banner-txt { color:var(--danger); font-size:14px; font-weight:800; letter-spacing:3px; text-transform:uppercase; animation:blink 1s infinite; }
+@keyframes blink { 50% { opacity:.3; } }
+
+/* ══ CLEAN BANNER ══ */
+#clean-banner { display:none; background:rgba(0,212,255,.07); border:2px solid var(--clean); padding:12px 20px; margin-bottom:16px; align-items:center; justify-content:space-between; gap:12px; clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%); }
+#clean-banner.on { display:flex; }
+.clean-banner-txt { color:var(--clean); font-size:13px; font-weight:800; letter-spacing:2px; text-transform:uppercase; animation:blink 1.5s infinite; }
+
+/* ══ HEADER ══ */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 24px; background:var(--panel);
+  border:1px solid var(--border); border-bottom:2px solid var(--accent);
+  margin-bottom:20px;
+  clip-path:polygon(0 0,calc(100% - 28px) 0,100% 28px,100% 100%,0 100%);
+}
+.logo { display:flex; align-items:center; gap:12px; }
+.logo-icon { width:40px; height:40px; border:2px solid var(--accent); border-radius:10px; display:grid; place-items:center; font-size:20px; box-shadow:0 0 16px rgba(0,212,255,.2); }
+.logo-text { font-size:20px; font-weight:700; letter-spacing:2px; color:#fff; }
+.logo-sub { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--dim); letter-spacing:1px; }
+.status-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+.status-pill { display:flex; align-items:center; gap:8px; padding:6px 14px; border:1px solid var(--border); border-radius:20px; font-family:'Share Tech Mono',monospace; font-size:12px; transition:border-color .3s; }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--dim); transition:all .3s; }
+.dot.on  { background:var(--accent2); box-shadow:0 0 8px var(--accent2); }
+.dot.err { background:var(--danger); box-shadow:0 0 8px var(--danger); animation:blink 1s infinite; }
+
+/* ══ TABS ══ */
+.tabs { display:flex; gap:4px; margin-bottom:20px; flex-wrap:wrap; }
+.tab { padding:10px 22px; background:var(--panel); border:1px solid var(--border); color:var(--dim); font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px; cursor:pointer; text-transform:uppercase; transition:all .2s; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%); }
+.tab:hover { color:var(--text); border-color:var(--dim); }
+.tab.active { color:var(--accent); border-color:var(--accent); background:rgba(0,212,255,.06); }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+
+/* ══ PANELS ══ */
+.panel { background:var(--panel); border:1px solid var(--border); padding:20px; clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%); margin-bottom:16px; animation:fadeIn .3s ease both; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.panel-title { font-size:10px; font-weight:700; letter-spacing:3px; color:var(--dim); text-transform:uppercase; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.panel-title::before { content:''; width:3px; height:14px; background:var(--accent); border-radius:2px; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+/* ══ PROGRESS PANEL ══ */
+#progress-panel { display:none; background:var(--panel); border:1px solid var(--border); border-top:2px solid var(--accent); padding:20px; margin-bottom:16px; clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%); animation:fadeIn .3s ease both; }
+#progress-panel.on { display:block; }
+.prog-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.prog-title { font-size:10px; font-weight:700; letter-spacing:3px; color:var(--dim); text-transform:uppercase; }
+.prog-pct { font-family:'Share Tech Mono',monospace; font-size:28px; font-weight:700; color:var(--accent); line-height:1; transition:color .4s; }
+.prog-pct.done { color:var(--accent2); }
+.prog-bar-bg { width:100%; height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin-bottom:18px; }
+.prog-bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .6s ease; position:relative; overflow:hidden; }
+.prog-bar-fill::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.25) 50%,transparent 100%); animation:shimmer 1.5s infinite; }
+@keyframes shimmer { from { transform:translateX(-100%); } to { transform:translateX(200%); } }
+.prog-bar-fill.done { background:linear-gradient(90deg,var(--accent2),var(--accent)); }
+.prog-bar-fill.done::after { display:none; }
+.stages-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.stage-item { display:flex; flex-direction:column; align-items:center; gap:5px; flex:1; min-width:72px; }
+.stage-dot-wrap { position:relative; width:36px; height:36px; display:grid; place-items:center; }
+.stage-dot { width:28px; height:28px; border-radius:50%; border:2px solid var(--border2); background:var(--bg); display:grid; place-items:center; font-size:13px; transition:all .4s; color:var(--dim); }
+.stage-dot.active { border-color:currentColor; box-shadow:0 0 14px -2px currentColor; animation:pulse-dot .8s infinite alternate; }
+@keyframes pulse-dot { from { box-shadow:0 0 8px -2px currentColor; } to { box-shadow:0 0 20px 0px currentColor; } }
+.stage-dot.done { background:rgba(0,255,157,.1); border-color:var(--accent2); color:var(--accent2); }
+.stage-ring { position:absolute; inset:0; border-radius:50%; border:2px solid transparent; border-top-color:currentColor; opacity:0; }
+.stage-item.active .stage-ring { opacity:1; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stage-name { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--dim); text-align:center; transition:color .3s; }
+.stage-item.active .stage-name { color:var(--text); }
+.stage-item.done   .stage-name { color:var(--accent2); }
+.stage-connector { flex-shrink:0; width:16px; height:2px; background:var(--border); align-self:center; margin-bottom:18px; transition:background .4s; }
+.stage-connector.done { background:var(--accent2); }
+.prog-info-row { display:flex; gap:20px; flex-wrap:wrap; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--dim); }
+.prog-info-item strong { color:var(--text); margin-left:4px; }
+
+/* ══ PUMP GRID ══ */
+.pump-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
+.pump-card { background:var(--bg); border:1px solid var(--border); padding:16px 10px; text-align:center; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%); transition:border-color .4s,box-shadow .4s; }
+.pump-card.running { border-color:currentColor; box-shadow:0 0 18px -4px currentColor; }
+.pump-led { width:8px; height:8px; border-radius:50%; background:var(--dim); margin:0 auto 10px; transition:all .3s; }
+.pump-card.running .pump-led { animation:blink .5s infinite; }
+.pump-name { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
+.pump-vol  { font-family:'Share Tech Mono',monospace; font-size:20px; font-weight:700; margin-bottom:2px; }
+.pump-unit { font-size:9px; color:var(--dim); letter-spacing:1px; }
+.pump-slider { width:100%; margin:10px 0; -webkit-appearance:none; appearance:none; height:4px; border-radius:2px; background:var(--border); outline:none; cursor:pointer; }
+.pump-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:currentColor; cursor:pointer; box-shadow:0 0 6px currentColor; }
+.pump-red    { color:var(--red);    } .pump-yellow { color:var(--yellow); }
+.pump-blue   { color:var(--blue);   } .pump-white  { color:var(--white-c); }
+.pump-clean  { color:var(--clean);  }
+.pump-red    .pump-led { background:var(--red);    }
+.pump-yellow .pump-led { background:var(--yellow); }
+.pump-blue   .pump-led { background:var(--blue);   }
+.pump-white  .pump-led { background:var(--white-c);}
+.pump-clean  .pump-led { background:var(--clean);  }
+
+/* ══ COLOR PREVIEW ══ */
+.color-preview { width:100%; height:72px; border-radius:4px; border:1px solid var(--border); margin-bottom:12px; transition:background .4s; position:relative; overflow:hidden; }
+.color-preview::after { content:attr(data-hex); position:absolute; bottom:8px; right:10px; font-family:'Share Tech Mono',monospace; font-size:12px; color:rgba(255,255,255,.7); }
+
+/* ══ VALIDATION ALERT ══ */
+.val-alert { display:none; background:rgba(255,159,67,.08); border:1px solid var(--warn); padding:10px 14px; margin-bottom:12px; font-size:12px; color:var(--warn); font-family:'Share Tech Mono',monospace; }
+.val-alert.on { display:block; }
+
+/* ══ BUTTONS ══ */
+.btn { padding:10px 20px; border:1px solid currentColor; background:transparent; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:all .2s; clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%); white-space:nowrap; }
+.btn-accent  { color:var(--accent);  } .btn-accent:hover  { background:rgba(0,212,255,.1);  }
+.btn-success { color:var(--accent2); } .btn-success:hover { background:rgba(0,255,157,.1);  }
+.btn-danger  { color:var(--danger);  } .btn-danger:hover  { background:rgba(255,56,96,.1);  }
+.btn-warn    { color:var(--warn);    } .btn-warn:hover    { background:rgba(255,159,67,.1);  }
+.btn:disabled { opacity:.35; cursor:not-allowed; pointer-events:none; }
+.btn-big { width:100%; padding:14px; font-size:14px; letter-spacing:2px; }
+.em-btn { width:100%; padding:14px; background:rgba(255,56,96,.10); border:2px solid var(--danger); color:var(--danger); font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:800; letter-spacing:3px; text-transform:uppercase; cursor:pointer; clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%); transition:all .2s; margin-top:12px; }
+.em-btn:hover { background:rgba(255,56,96,.25); box-shadow:0 0 24px rgba(255,56,96,.3); }
+.rst-btn { padding:10px 18px; background:transparent; border:1px solid var(--dim); color:var(--dim); font-family:'Rajdhani',sans-serif; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; cursor:not-allowed; transition:all .3s; clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%); }
+.rst-btn.armed { border-color:var(--accent2); color:var(--accent2); background:rgba(0,255,157,.08); cursor:pointer; }
+.rst-btn.armed:hover { background:rgba(0,255,157,.2); }
+
+/* ══ CLEAN TOGGLE BTN ══ */
+.clean-toggle { width:100%; padding:16px; border:2px solid var(--clean); background:rgba(0,212,255,.06); color:var(--clean); font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:800; letter-spacing:3px; text-transform:uppercase; cursor:pointer; clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%); transition:all .25s; }
+.clean-toggle:hover { background:rgba(0,212,255,.15); box-shadow:0 0 20px rgba(0,212,255,.2); }
+.clean-toggle.active { border-color:var(--danger); background:rgba(255,56,96,.10); color:var(--danger); animation:pulse-border 1.2s infinite; }
+.clean-toggle.active:hover { background:rgba(255,56,96,.2); }
+@keyframes pulse-border { 0%,100%{box-shadow:0 0 0px rgba(255,56,96,.3)} 50%{box-shadow:0 0 18px rgba(255,56,96,.5)} }
+
+/* ══ CAMPOS ══ */
+input[type=text], input[type=number] { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:10px 14px; font-family:'Share Tech Mono',monospace; font-size:13px; outline:none; width:100%; transition:border-color .2s; }
+input:focus { border-color:var(--accent); }
+.field-row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+.field-label { font-size:11px; color:var(--dim); width:60px; letter-spacing:1px; white-space:nowrap; }
+
+/* ══ OPERARIO ROW ══ */
+.op-row { display:flex; gap:8px; align-items:center; margin-bottom:14px; padding:12px 14px; background:var(--bg); border:1px solid var(--border); border-left:3px solid var(--accent); }
+.op-label { font-size:10px; font-weight:700; letter-spacing:2px; color:var(--dim); white-space:nowrap; }
+.op-input { flex:1; background:transparent; border:none; border-bottom:1px solid var(--border2); color:var(--accent); font-family:'Share Tech Mono',monospace; font-size:14px; padding:4px 0; outline:none; }
+.op-input:focus { border-bottom-color:var(--accent); }
+.op-saved { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--dim); margin-left:4px; transition:opacity .3s; }
+
+/* ══ TANK BARS ══ */
+.tank-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.tank-label { font-family:'Share Tech Mono',monospace; font-size:11px; width:45px; }
+.tank-bar-bg { flex:1; height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
+.tank-bar-fill { height:100%; border-radius:4px; transition:width .8s ease; }
+.tank-pct { font-family:'Share Tech Mono',monospace; font-size:11px; width:35px; text-align:right; }
+.tank-low { color:var(--danger) !important; }
+
+/* ══ CONSOLE ══ */
+.console { background:var(--bg); border:1px solid var(--border); font-family:'Share Tech Mono',monospace; font-size:12px; padding:12px; height:260px; overflow-y:auto; line-height:1.8; }
+.console::-webkit-scrollbar { width:4px; }
+.console::-webkit-scrollbar-thumb { background:var(--border); }
+.log-tx   { color:var(--accent);  } .log-rx { color:var(--accent2); }
+.log-err  { color:var(--danger);  } .log-info { color:var(--dim); }
+.log-ok   { color:var(--accent2); } .log-warn { color:var(--warn); }
+.cmd-row { display:flex; gap:8px; margin-top:10px; }
+.cmd-input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--accent); font-family:'Share Tech Mono',monospace; font-size:13px; padding:10px 14px; outline:none; }
+.cmd-input:focus { border-color:var(--accent); }
+.quick-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+
+/* ══ IND GRID ══ */
+.ind-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.ind-card { background:var(--bg); border:1px solid var(--border); padding:18px; clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%); }
+.ind-title { font-size:14px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+.ind-gpio { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--dim); margin-bottom:12px; }
+.ind-cmd-preview { margin-top:8px; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--dim); word-break:break-all; }
+
+/* ══ CALIBRATION ══ */
+.calib-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.calib-card { background:var(--bg); border:1px solid var(--border); padding:16px; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%); }
+.calib-title { font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
+.calib-rate { font-family:'Share Tech Mono',monospace; font-size:24px; font-weight:700; margin:8px 0 2px; }
+.calib-unit { font-size:10px; color:var(--dim); letter-spacing:1px; margin-bottom:12px; }
+.calib-timer { font-family:'Share Tech Mono',monospace; font-size:32px; color:var(--accent); text-align:center; padding:12px; border:1px solid var(--border); margin:10px 0; display:none; }
+.calib-timer.on { display:block; }
+.calib-run-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.calib-run-badge { flex:1; min-width:70px; background:var(--panel); border:1px solid var(--border); padding:8px 6px; text-align:center; font-family:'Share Tech Mono',monospace; font-size:11px; }
+.calib-run-badge.ok   { border-color:var(--accent2); color:var(--accent2); }
+.calib-run-badge.warn { border-color:var(--warn); color:var(--warn); }
+.calib-run-badge span { display:block; font-size:16px; font-weight:700; }
+.calib-avg { font-family:'Share Tech Mono',monospace; font-size:13px; color:var(--accent2); margin-top:6px; }
+
+/* ══ RECIPES ══ */
+.recipe-list { max-height:340px; overflow-y:auto; }
+.recipe-list::-webkit-scrollbar { width:4px; }
+.recipe-list::-webkit-scrollbar-thumb { background:var(--border); }
+.recipe-item { display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--border); margin-bottom:8px; cursor:pointer; transition:all .2s; background:var(--bg); }
+.recipe-item:hover { border-color:var(--accent); background:rgba(0,212,255,.04); }
+.recipe-swatch { width:32px; height:32px; border-radius:4px; border:1px solid var(--border); flex-shrink:0; }
+.recipe-info { flex:1; min-width:0; }
+.recipe-name { font-size:13px; font-weight:700; color:var(--text); }
+.recipe-meta { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--dim); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.recipe-id-badge { display:inline-block; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--accent); background:rgba(0,212,255,.08); border:1px solid rgba(0,212,255,.25); padding:1px 6px; border-radius:2px; margin-right:6px; letter-spacing:1px; }
+.recipe-actions { display:flex; gap:6px; flex-shrink:0; }
+.recipe-empty { text-align:center; padding:32px; font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--dim); }
+
+/* ══ SEQ INDICATOR ══ */
+.seq-indicator { display:flex; align-items:center; gap:6px; padding:8px 12px; background:var(--bg); border:1px solid var(--border); margin-bottom:14px; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--dim); letter-spacing:1px; flex-wrap:wrap; }
+.seq-step { padding:4px 10px; border:1px solid var(--border); border-radius:2px; transition:all .3s; white-space:nowrap; }
+.seq-step.active { border-color:currentColor; color:currentColor; box-shadow:0 0 8px -1px currentColor; background:rgba(255,255,255,.04); }
+.seq-step.done { opacity:.4; text-decoration:line-through; }
+.seq-arrow { color:var(--dim); font-size:10px; }
+.seq-manual-badge { padding:3px 10px; border:1px dashed var(--clean); border-radius:2px; color:var(--clean); font-size:10px; opacity:.6; }
+
+.sep { height:1px; background:var(--border); margin:14px 0; }
+.wifi-box { background:rgba(0,212,255,.05); border:1px solid rgba(0,212,255,.25); padding:16px; margin-bottom:16px; }
+.wifi-ssid { font-family:'Share Tech Mono',monospace; font-size:22px; color:var(--accent); font-weight:700; letter-spacing:3px; }
+.wifi-detail { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--dim); margin-top:6px; }
+
+@media(max-width:768px) {
+  .pump-grid { grid-template-columns:repeat(3,1fr); }
+  .grid-2,.ind-grid,.calib-grid { grid-template-columns:1fr; }
+  .stages-row { gap:3px; }
+  .stage-connector { width:8px; }
+}
+</style>
+</head>
+<body>
+
+<div id="em-overlay"></div>
+<div class="wrap">
+
+<div id="em-banner">
+  <div class="banner-txt">⚠ EMERGENCIA — TODOS LOS ACTUADORES DETENIDOS</div>
+  <button class="rst-btn armed" onclick="sendReset()">↺ RESETEAR SISTEMA</button>
+</div>
+
+<!-- Banner de limpieza manual activa -->
+<div id="clean-banner">
+  <div class="clean-banner-txt">💧 LIMPIEZA ACTIVA — bomba agua + agitador encendidos</div>
+  <button class="btn btn-danger" style="padding:8px 18px;font-size:12px" onclick="doCleanOff()">⏹ DETENER</button>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚗</div>
+    <div>
+      <div class="logo-text">MEZCLADOR v5</div>
+      <div class="logo-sub">PIGMENTOS · ESP32-S3 · MIX → EXTRACT → LIMPIEZA MANUAL</div>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="status-pill">
+      <div class="dot" id="dot-ws"></div>
+      <span id="lbl-ws">DESCONECTADO</span>
+    </div>
+    <div class="status-pill" id="pill-state">IDLE</div>
+  </div>
+</header>
+
+<!-- ══ PROGRESS PANEL ══ -->
+<div id="progress-panel">
+  <div class="prog-header">
+    <div class="prog-title">◈ Progreso del proceso</div>
+    <div class="prog-pct" id="prog-pct-lbl">0%</div>
+  </div>
+  <div class="prog-bar-bg"><div class="prog-bar-fill" id="prog-bar" style="width:0%"></div></div>
+  <div class="stages-row" id="stages-row"></div>
+  <div class="prog-info-row">
+    <div class="prog-info-item">PASO<strong id="pi-step">—</strong></div>
+    <div class="prog-info-item">ETAPA<strong id="pi-label">—</strong></div>
+    <div class="prog-info-item">TIEMPO REST.<strong id="pi-remain">—</strong></div>
+    <div class="prog-info-item">VOLUMEN TOTAL<strong id="pi-vol">—</strong></div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('conexion',this)">Conexión</button>
+  <button class="tab" onclick="showTab('consola',this)">Consola</button>
+  <button class="tab" onclick="showTab('mezcla',this)">Mezcla</button>
+  <button class="tab" onclick="showTab('individual',this)">Prueba Individual</button>
+  <button class="tab" onclick="showTab('calibracion',this)">Calibración</button>
+  <button class="tab" onclick="showTab('recetas',this)">Historial de Mezclas</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB CONEXIÓN
+════════════════════════════════════════════════════ -->
+<div id="tab-conexion" class="tab-content active">
+  <div class="wifi-box">
+    <div style="font-size:10px;color:var(--dim);letter-spacing:2px;margin-bottom:8px;">CONECTATE AL WIFI DEL ESP32</div>
+    <div class="wifi-ssid">Mezclador-ESP32</div>
+    <div class="wifi-detail">Contraseña: mezclador123 · IP: 192.168.4.1 · Puerto WS: 81</div>
+  </div>
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="panel">
+      <div class="panel-title">WebSocket</div>
+      <div class="field-row"><div class="field-label">IP ESP32</div><input type="text" id="ws-ip" value="192.168.4.1"></div>
+      <div class="field-row"><div class="field-label">Puerto</div><input type="text" id="ws-port" value="81"></div>
+      <button class="btn btn-success btn-big" id="btn-connect" onclick="toggleConnect()" style="margin-top:8px">CONECTAR</button>
+      <div class="sep"></div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);line-height:1.9">
+        1. Conecta tu PC al WiFi <span style="color:var(--accent)">Mezclador-ESP32</span><br>
+        2. Contraseña: <span style="color:var(--accent)">mezclador123</span><br>
+        3. Haz clic en CONECTAR
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Niveles de Tanques</div>
+      <div class="tank-row"><div class="tank-label" style="color:var(--red)">ROJO</div><div class="tank-bar-bg"><div class="tank-bar-fill" id="tank-r" style="background:var(--red);width:100%"></div></div><div class="tank-pct" id="pct-r">100%</div></div>
+      <div class="tank-row"><div class="tank-label" style="color:var(--yellow)">AMAR</div><div class="tank-bar-bg"><div class="tank-bar-fill" id="tank-g" style="background:var(--yellow);width:100%"></div></div><div class="tank-pct" id="pct-g">100%</div></div>
+      <div class="tank-row"><div class="tank-label" style="color:var(--blue)">AZUL</div><div class="tank-bar-bg"><div class="tank-bar-fill" id="tank-b" style="background:var(--blue);width:100%"></div></div><div class="tank-pct" id="pct-b">100%</div></div>
+      <div class="tank-row"><div class="tank-label" style="color:var(--white-c)">BLANC</div><div class="tank-bar-bg"><div class="tank-bar-fill" id="tank-w" style="background:var(--white-c);width:100%"></div></div><div class="tank-pct" id="pct-w">100%</div></div>
+      <div class="tank-row"><div class="tank-label" style="color:var(--clean)">AGUA</div><div class="tank-bar-bg"><div class="tank-bar-fill" id="tank-c" style="background:var(--clean);width:100%"></div></div><div class="tank-pct" id="pct-c">100%</div></div>
+      <div class="sep"></div>
+      <button class="btn btn-accent" style="width:100%" onclick="sendCmd('status')">↺ ACTUALIZAR</button>
+    </div>
+  </div>
+  <button class="em-btn" onclick="emergencyStop()">⚠ PARADA DE EMERGENCIA</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB MEZCLA
+════════════════════════════════════════════════════ -->
+<div id="tab-mezcla" class="tab-content">
+  <div class="panel">
+    <div class="panel-title">Configurar Mezcla (mL)</div>
+
+    <!-- Operario -->
+    <div class="op-row">
+      <div class="op-label">OPERARIO</div>
+      <input class="op-input" type="text" id="op-input" placeholder="Nombre del operario…" oninput="saveOperario(this.value)" autocomplete="off">
+      <span class="op-saved" id="op-saved">✓ guardado</span>
+    </div>
+
+    <!-- Indicador de secuencia v5 -->
+    <div class="seq-indicator">
+      <span style="color:var(--dim);margin-right:4px">FLUJO:</span>
+      <span class="seq-step pump-red"    id="seq-r"     style="border-color:rgba(255,71,87,.3)">ROJO</span>
+      <span class="seq-arrow">→</span>
+      <span class="seq-step pump-yellow" id="seq-g"     style="border-color:rgba(255,211,42,.3)">AMARILLO</span>
+      <span class="seq-arrow">→</span>
+      <span class="seq-step pump-blue"   id="seq-b"     style="border-color:rgba(77,171,247,.3)">AZUL</span>
+      <span class="seq-arrow">→</span>
+      <span class="seq-step pump-white"  id="seq-w"     style="border-color:rgba(240,230,211,.3)">BLANCO</span>
+      <span class="seq-arrow">→</span>
+      <span class="seq-step" id="seq-ext" style="color:#b48ef7;border-color:rgba(180,142,247,.3)">EXTRACCIÓN</span>
+      <span class="seq-arrow">→</span>
+      <span class="seq-manual-badge">LIMPIEZA MANUAL ▼</span>
+    </div>
+
+    <div class="val-alert" id="val-alert"></div>
+    <div class="color-preview" id="preview-box" data-hex="#000000" style="background:#000"></div>
+
+    <div class="pump-grid">
+      <div class="pump-card pump-red" id="card-r">
+        <div class="pump-led"></div>
+        <div class="pump-name">Rojo</div>
+        <div class="pump-vol" id="val-r">0</div>
+        <div class="pump-unit">mL</div>
+        <input type="range"  id="sl-r"  class="pump-slider" min="0" max="200" value="0" style="color:var(--red)"    oninput="updateSlider('r',this.value)">
+        <input type="number" id="num-r" min="0" max="500"   value="0"         style="text-align:center;color:var(--red);margin-top:6px"    oninput="updateNum('r',this.value)">
+      </div>
+      <div class="pump-card pump-yellow" id="card-g">
+        <div class="pump-led"></div>
+        <div class="pump-name">Amarillo</div>
+        <div class="pump-vol" id="val-g">0</div>
+        <div class="pump-unit">mL</div>
+        <input type="range"  id="sl-g"  class="pump-slider" min="0" max="200" value="0" style="color:var(--yellow)" oninput="updateSlider('g',this.value)">
+        <input type="number" id="num-g" min="0" max="500"   value="0"         style="text-align:center;color:var(--yellow);margin-top:6px" oninput="updateNum('g',this.value)">
+      </div>
+      <div class="pump-card pump-blue" id="card-b">
+        <div class="pump-led"></div>
+        <div class="pump-name">Azul</div>
+        <div class="pump-vol" id="val-b">0</div>
+        <div class="pump-unit">mL</div>
+        <input type="range"  id="sl-b"  class="pump-slider" min="0" max="200" value="0" style="color:var(--blue)"   oninput="updateSlider('b',this.value)">
+        <input type="number" id="num-b" min="0" max="500"   value="0"         style="text-align:center;color:var(--blue);margin-top:6px"   oninput="updateNum('b',this.value)">
+      </div>
+      <div class="pump-card pump-white" id="card-w">
+        <div class="pump-led"></div>
+        <div class="pump-name">Blanco</div>
+        <div class="pump-vol" id="val-w">0</div>
+        <div class="pump-unit">mL</div>
+        <input type="range"  id="sl-w"  class="pump-slider" min="0" max="200" value="0" style="color:var(--white-c)" oninput="updateSlider('w',this.value)">
+        <input type="number" id="num-w" min="0" max="500"   value="0"          style="text-align:center;color:var(--white-c);margin-top:6px" oninput="updateNum('w',this.value)">
+      </div>
+      <div class="pump-card pump-clean" id="card-clean" style="opacity:.55">
+        <div class="pump-led"></div>
+        <div class="pump-name">Agua</div>
+        <div class="pump-vol" style="font-size:13px;margin-top:8px">MANUAL</div>
+        <div class="pump-unit" style="margin-top:4px;line-height:1.5">Activar en<br>pestaña ▼</div>
+      </div>
+    </div>
+
+    <!-- Guardar mezcla -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+      <input type="text" id="recipe-name-input" placeholder="Nombre de la mezcla…" style="flex:1">
+      <button class="btn btn-warn" onclick="saveRecipe()">💾 GUARDAR MEZCLA</button>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-success btn-big" id="btn-mix" onclick="sendMix()" style="flex:2;min-width:160px">▶ INICIAR PROCESO (Dosif + Extracción)</button>
+      <button class="btn btn-accent" style="padding:14px 18px" onclick="resetSliders()">↺ RESET</button>
+    </div>
+
+    <button class="em-btn" onclick="emergencyStop()">⚠ PARADA DE EMERGENCIA</button>
+  </div>
+
+  <!-- Panel de limpieza manual separado -->
+  <div class="panel" style="border-top:2px solid var(--clean)">
+    <div class="panel-title" style="color:var(--clean)">Limpieza Manual</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);line-height:1.9;margin-bottom:16px">
+      Activa bomba de agua + agitador simultáneamente.<br>
+      Corre indefinidamente hasta que lo detengas — tú decides cuándo está limpio.
+    </div>
+    <button class="clean-toggle" id="clean-toggle-main" onclick="toggleClean()">💧 ACTIVAR LIMPIEZA</button>
+    <div id="clean-status-txt" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);margin-top:10px;text-align:center"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Comando JSON que se enviará</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent);padding:10px;background:var(--bg);border:1px solid var(--border)" id="cmd-preview">{"cmd":"mix","r":0,"g":0,"b":0,"w":0}</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB RECETAS
+════════════════════════════════════════════════════ -->
+<div id="tab-recetas" class="tab-content">
+  <div class="panel">
+    <div class="panel-title">Historial de mezclas</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-danger" onclick="clearAllRecipes()">🗑 BORRAR TODO</button>
+      <button class="btn btn-accent" onclick="renderRecipes()">↺ ACTUALIZAR</button>
+      <div style="flex:1;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);display:flex;align-items:center;justify-content:flex-end" id="recipe-count"></div>
+    </div>
+    <div class="recipe-list" id="recipe-list">
+      <div class="recipe-empty">// No hay mezclas guardadas aún.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB CALIBRACIÓN
+════════════════════════════════════════════════════ -->
+<div id="tab-calibracion" class="tab-content">
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-title">Método de calibración por volumen conocido</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--dim);line-height:2;margin-bottom:14px">
+      1. Pon un vaso graduado bajo la bomba<br>
+      2. Presiona INICIAR PULSO — la bomba corre 10 segundos exactos<br>
+      3. Mide los mL que salieron e ingrésalos<br>
+      4. Repite 3 veces — la interfaz promedia y detecta outliers<br>
+      5. Presiona GUARDAR → el valor se envía al ESP32 y persiste en NVS
+    </div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--warn)">
+      ⚠ Asegúrate de que los tanques tengan pigmento / agua antes de calibrar.<br>
+      ⚠ Usa siempre el mismo contenedor para medir (menor error sistemático).
+    </div>
+  </div>
+  <div class="calib-grid" id="calib-grid"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB INDIVIDUAL
+════════════════════════════════════════════════════ -->
+<div id="tab-individual" class="tab-content">
+  <div style="margin-bottom:14px;font-size:12px;color:var(--dim)">Prueba cada bomba de forma independiente. No ejecuta el flujo completo.</div>
+  <div class="ind-grid">
+    <div class="ind-card pump-red">
+      <div class="ind-title pump-red">● Bomba Roja</div>
+      <div class="ind-gpio">GPIO IN1=12  IN2=13  EN=14</div>
+      <div class="field-row"><div class="field-label">VOL (mL)</div><input type="number" id="ind-r-vol" value="20" min="1" max="500"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-danger" style="flex:1" onclick="sendInd('r')">▶ ACTIVAR</button>
+        <button class="btn btn-accent" onclick="sendCmd('status')">↺</button>
+      </div>
+      <div class="ind-cmd-preview" id="ind-r-prev"></div>
+    </div>
+    <div class="ind-card pump-yellow">
+      <div class="ind-title pump-yellow">● Bomba Amarilla</div>
+      <div class="ind-gpio">GPIO IN1=15  IN2=16  EN=17</div>
+      <div class="field-row"><div class="field-label">VOL (mL)</div><input type="number" id="ind-g-vol" value="20" min="1" max="500"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn" style="flex:1;color:var(--yellow);border-color:var(--yellow)" onclick="sendInd('g')">▶ ACTIVAR</button>
+        <button class="btn btn-accent" onclick="sendCmd('status')">↺</button>
+      </div>
+      <div class="ind-cmd-preview" id="ind-g-prev"></div>
+    </div>
+    <div class="ind-card pump-blue">
+      <div class="ind-title pump-blue">● Bomba Azul</div>
+      <div class="ind-gpio">GPIO IN1=18  IN2=8  EN=9</div>
+      <div class="field-row"><div class="field-label">VOL (mL)</div><input type="number" id="ind-b-vol" value="20" min="1" max="500"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-accent" style="flex:1" onclick="sendInd('b')">▶ ACTIVAR</button>
+        <button class="btn btn-accent" onclick="sendCmd('status')">↺</button>
+      </div>
+      <div class="ind-cmd-preview" id="ind-b-prev"></div>
+    </div>
+    <div class="ind-card pump-white">
+      <div class="ind-title pump-white">● Bomba Blanca</div>
+      <div class="ind-gpio">GPIO IN1=10  IN2=11  EN=6</div>
+      <div class="field-row"><div class="field-label">VOL (mL)</div><input type="number" id="ind-w-vol" value="20" min="1" max="500"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn" style="flex:1;color:var(--white-c);border-color:var(--white-c)" onclick="sendInd('w')">▶ ACTIVAR</button>
+        <button class="btn btn-accent" onclick="sendCmd('status')">↺</button>
+      </div>
+      <div class="ind-cmd-preview" id="ind-w-prev"></div>
+    </div>
+
+    <!-- Limpieza manual en tab individual -->
+    <div class="ind-card" style="border-color:rgba(0,212,255,.3);grid-column:span 2">
+      <div class="ind-title" style="color:var(--clean)">● Limpieza Manual — Bomba Agua + Agitador</div>
+      <div class="ind-gpio">Agua: GPIO IN1=40 IN2=41 EN=42 · Agitador: GPIO=3 ⚠(ver nota UART)</div>
+      <div style="margin-bottom:14px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);line-height:1.7">
+        Activa bomba de agua y agitador simultáneamente.<br>
+        Sin timeout — el operario decide cuándo detener.
+      </div>
+      <button class="clean-toggle" id="clean-toggle-ind" onclick="toggleClean()">💧 ACTIVAR LIMPIEZA</button>
+      <div class="ind-cmd-preview" id="ind-clean-prev" style="margin-top:10px"></div>
+    </div>
+
+    <div class="ind-card" style="border-color:rgba(180,142,247,.3);grid-column:span 2">
+      <div class="ind-title" style="color:#b48ef7">● Bomba Extracción</div>
+      <div class="ind-gpio">GPIO IN1=4  IN2=5  EN=7</div>
+      <div class="field-row"><div class="field-label">VOL (mL)</div><input type="number" id="ind-ext-vol" value="50" min="1" max="2000"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn" style="flex:1;color:#b48ef7;border-color:#b48ef7" onclick="sendIndExt()">▶ EXTRAER</button>
+        <button class="btn btn-accent" onclick="sendCmd('status')">↺</button>
+        <button class="btn btn-danger" onclick="emergencyStop()">⚠ STOP</button>
+      </div>
+      <div class="ind-cmd-preview" id="ind-ext-prev"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB CONSOLA
+════════════════════════════════════════════════════ -->
+<div id="tab-consola" class="tab-content">
+  <div class="panel">
+    <div class="panel-title">Consola WebSocket</div>
+    <div class="console" id="console-box">
+      <div class="log-info">// Consola lista. Conecta al ESP32 por WiFi.</div>
+    </div>
+    <div class="cmd-row">
+      <input class="cmd-input" type="text" id="cmd-raw" placeholder='{"cmd":"status"}' onkeydown="if(event.key==='Enter')sendRaw()">
+      <button class="btn btn-accent" onclick="sendRaw()">ENVIAR</button>
+      <button class="btn" style="color:var(--dim)" onclick="clearConsole()">LIMPIAR</button>
+    </div>
+    <div class="quick-grid">
+      <button class="btn btn-accent"  onclick="sendCmd('status')">STATUS</button>
+      <button class="btn btn-danger"  onclick="emergencyStop()">⚠ STOP</button>
+      <button class="rst-btn" id="rst-cons" onclick="sendReset()" style="padding:10px 18px">↺ RESET</button>
+      <button class="btn btn-warn"    onclick="doCleanOn()">💧 CLEAN ON</button>
+      <button class="btn btn-accent"  onclick="doCleanOff()">⏹ CLEAN OFF</button>
+      <button class="btn btn-success" onclick='wsSend("{\"cmd\":\"mix\",\"r\":10,\"g\":0,\"b\":0,\"w\":0}")'>TEST ROJA</button>
+      <button class="btn" style="color:var(--yellow);border-color:var(--yellow)" onclick='wsSend("{\"cmd\":\"mix\",\"r\":0,\"g\":10,\"b\":0,\"w\":0}")'>TEST AMARILLA</button>
+      <button class="btn btn-accent"  onclick='wsSend("{\"cmd\":\"mix\",\"r\":0,\"g\":0,\"b\":10,\"w\":0}")'>TEST AZUL</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// CONSTANTES
+// ════════════════════════════════════════════════════════════════════════
+const STAGES = [
+  { key:'rojo',       icon:'🔴', name:'Rojo',       color:'var(--red)'    },
+  { key:'amarillo',   icon:'🟡', name:'Amarillo',   color:'var(--yellow)' },
+  { key:'azul',       icon:'🔵', name:'Azul',       color:'var(--blue)'   },
+  { key:'blanco',     icon:'⚪', name:'Blanco',     color:'var(--white-c)'},
+  { key:'extraccion', icon:'⬆', name:'Extracción', color:'#b48ef7'       },
+];
+const STATE_NAMES = ['IDLE','MEZCLANDO','EXTRAYENDO','LIMPIANDO','EMERGENCIA','LISTO','CALIBRANDO'];
+
+const PUMP_DEF = [
+  { idx:0, key:'r',     name:'Rojo',       color:'var(--red)'    },
+  { idx:1, key:'g',     name:'Amarillo',   color:'var(--yellow)' },
+  { idx:2, key:'b',     name:'Azul',       color:'var(--blue)'   },
+  { idx:3, key:'w',     name:'Blanco',     color:'var(--white-c)'},
+  { idx:4, key:'clean', name:'Limpieza',   color:'var(--clean)'  },
+  { idx:5, key:'ext',   name:'Extracción', color:'#b48ef7'       },
+];
+
+const CALIB_DURATION_S   = 10;
+const TANK_CAP_ML        = 500;
+const OUTLIER_THRESHOLD  = 0.15;
+
+// ════════════════════════════════════════════════════════════════════════
+// ESTADO LOCAL
+// ════════════════════════════════════════════════════════════════════════
+let flowRates    = [1.667, 1.667, 1.667, 1.667, 1.667, 2.000];
+let calibState   = PUMP_DEF.map(() => ({ runs:[], phase:'idle', timerInterval:null }));
+let tankLevels   = { r:100, g:100, b:100, w:100, clean:100 };
+let cleanActive  = false;   // estado local de limpieza manual
+
+// Operario persistente
+let operario = localStorage.getItem('mz_operario') || '';
+
+// ════════════════════════════════════════════════════════════════════════
+// GENERACIÓN DE ID ÚNICO
+// ════════════════════════════════════════════════════════════════════════
+function genMixID() {
+  // MX- seguido de 4 caracteres hex aleatorios → ej. MX-A3F7
+  const hex = Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+  return 'MX-' + hex;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// BUILD UI
+// ════════════════════════════════════════════════════════════════════════
+function buildStagesUI() {
+  const row = document.getElementById('stages-row');
+  row.innerHTML = '';
+  STAGES.forEach((s, i) => {
+    const item = document.createElement('div');
+    item.className = 'stage-item';
+    item.id = 'stage-' + s.key;
+    item.innerHTML = `
+      <div class="stage-dot-wrap">
+        <div class="stage-dot" id="sdot-${s.key}" style="color:${s.color}">${s.icon}</div>
+        <div class="stage-ring" style="color:${s.color}"></div>
+      </div>
+      <div class="stage-name">${s.name}</div>`;
+    row.appendChild(item);
+    if (i < STAGES.length - 1) {
+      const conn = document.createElement('div');
+      conn.className = 'stage-connector';
+      conn.id = 'sconn-' + s.key;
+      row.appendChild(conn);
+    }
+  });
+}
+
+function buildCalibUI() {
+  const grid = document.getElementById('calib-grid');
+  grid.innerHTML = '';
+  PUMP_DEF.forEach((p, i) => {
+    const card = document.createElement('div');
+    card.className = 'calib-card';
+    card.id = `calib-card-${i}`;
+    card.innerHTML = `
+      <div class="calib-title" style="color:${p.color}">⬡ Bomba ${p.name}</div>
+      <div class="calib-rate" id="cr-rate-${i}" style="color:${p.color}">${flowRates[i].toFixed(3)}</div>
+      <div class="calib-unit">mL/s (PWM=255)</div>
+      <div class="calib-timer" id="cr-timer-${i}">10</div>
+      <div class="calib-run-row" id="cr-runs-${i}"></div>
+      <div class="calib-avg" id="cr-avg-${i}"></div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <button class="btn btn-accent" style="flex:1" id="cr-pulse-btn-${i}" onclick="startCalibPulse(${i})">▶ INICIAR PULSO (10s)</button>
+        <button class="btn btn-danger" onclick="emergencyStop()" style="padding:10px 14px">⚠</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input type="number" step="0.1" min="0.1" max="999" id="cr-ml-${i}" placeholder="mL medidos…" style="flex:1">
+        <button class="btn btn-warn" onclick="addCalibRun(${i})">+ AGREGAR</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-success" style="flex:1" id="cr-save-btn-${i}" onclick="saveCalib(${i})" disabled>💾 GUARDAR EN ESP32</button>
+        <button class="btn" style="color:var(--dim);padding:10px 14px" onclick="resetCalib(${i})">↺</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// OPERARIO
+// ════════════════════════════════════════════════════════════════════════
+function saveOperario(val) {
+  operario = val.trim();
+  localStorage.setItem('mz_operario', operario);
+  const saved = document.getElementById('op-saved');
+  if (saved) { saved.style.opacity = '1'; setTimeout(() => saved.style.opacity = '0', 1200); }
+}
+
+function loadOperario() {
+  const inp = document.getElementById('op-input');
+  if (inp) inp.value = operario;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ════════════════════════════════════════════════════════════════════════
+let ws = null;
+
+function toggleConnect() {
+  if (ws && ws.readyState === WebSocket.OPEN) doDisconnect();
+  else doConnect();
+}
+function doConnect() {
+  const ip   = document.getElementById('ws-ip').value.trim();
+  const port = document.getElementById('ws-port').value.trim();
+  log('info', `Conectando a ws://${ip}:${port}...`);
+  ws = new WebSocket(`ws://${ip}:${port}`);
+  ws.onopen    = () => { setConnUI(true);  log('ok', 'WebSocket conectado'); sendCmd('status'); };
+  ws.onclose   = () => { setConnUI(false); log('info', 'WebSocket desconectado'); ws = null; };
+  ws.onerror   = () => { log('err', 'Error WS — verifica WiFi Mezclador-ESP32'); setConnUI(false); };
+  ws.onmessage = (e) => {
+    log('rx', e.data);
+    try {
+      const d = JSON.parse(e.data);
+      if (d.state !== undefined) updateStatus(d);
+      if (d.error) log('err', 'ESP32: ' + d.error);
+      if (d.calibDone) onCalibDone(d.calibPump);
+      if (d.flowRates) { flowRates = d.flowRates; updateCalibRates(); }
+    } catch(_) {}
+  };
+}
+function doDisconnect() { if (ws) ws.close(); }
+function setConnUI(on) {
+  document.getElementById('dot-ws').className = 'dot ' + (on ? 'on' : 'err');
+  document.getElementById('lbl-ws').textContent = on ? 'CONECTADO' : 'DESCONECTADO';
+  document.getElementById('btn-connect').textContent = on ? 'DESCONECTAR' : 'CONECTAR';
+  document.getElementById('btn-connect').className = 'btn btn-big ' + (on ? 'btn-danger' : 'btn-success');
+}
+function wsSend(json) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { log('err', 'No conectado'); return; }
+  ws.send(json); log('tx', json);
+}
+function sendCmd(cmd) {
+  const map = { status:'{"cmd":"status"}' };
+  wsSend(map[cmd] || cmd);
+}
+function emergencyStop() {
+  wsSend('{"cmd":"stop"}');
+  // Limpiar estado local de limpieza si estaba activa
+  if (cleanActive) { cleanActive = false; updateCleanUI(); }
+  log('err', '⚠ EMERGENCIA ENVIADA');
+}
+function sendReset() { wsSend('{"cmd":"reset"}'); log('ok', '↺ Reset enviado'); }
+
+// ════════════════════════════════════════════════════════════════════════
+// LIMPIEZA MANUAL
+// ════════════════════════════════════════════════════════════════════════
+function doCleanOn() {
+  wsSend('{"cmd":"cleanOn"}');
+  cleanActive = true;
+  updateCleanUI();
+  log('ok', '💧 Limpieza manual ON — agua + agitador activos');
+}
+function doCleanOff() {
+  wsSend('{"cmd":"cleanOff"}');
+  cleanActive = false;
+  updateCleanUI();
+  log('info', '⏹ Limpieza manual OFF');
+}
+function toggleClean() {
+  if (cleanActive) doCleanOff();
+  else doCleanOn();
+}
+function updateCleanUI() {
+  // Botones toggle en mezcla e individual
+  ['clean-toggle-main', 'clean-toggle-ind'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    if (cleanActive) {
+      btn.textContent = '⏹ DETENER LIMPIEZA';
+      btn.classList.add('active');
+    } else {
+      btn.textContent = '💧 ACTIVAR LIMPIEZA';
+      btn.classList.remove('active');
+    }
+  });
+  // Banner global
+  document.getElementById('clean-banner').classList.toggle('on', cleanActive);
+  // Texto de estado
+  const st = document.getElementById('clean-status-txt');
+  if (st) st.textContent = cleanActive ? '● Limpieza activa — agua + agitador encendidos' : '';
+  // Preview consola individual
+  const prev = document.getElementById('ind-clean-prev');
+  if (prev) prev.textContent = cleanActive ? '{"cmd":"cleanOn"} ← ACTIVO' : '';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STATUS
+// ════════════════════════════════════════════════════════════════════════
+function updateStatus(d) {
+  const s     = d.state || 0;
+  const sName = STATE_NAMES[s] || '?';
+  document.getElementById('pill-state').textContent = sName;
+
+  const isEm = d.emergency || s === 4;
+  document.getElementById('em-overlay').classList.toggle('on', isEm);
+  document.getElementById('em-banner').classList.toggle('on', isEm);
+  document.querySelectorAll('.rst-btn').forEach(b => b.classList.toggle('armed', isEm));
+
+  if (isEm || s === 0) {
+    if (cleanActive) { cleanActive = false; updateCleanUI(); }
+  }
+
+  // Sincronizar cleanActive con el ESP32 si nos manda cleanActive
+  if (d.cleanActive !== undefined && d.cleanActive !== cleanActive) {
+    cleanActive = d.cleanActive;
+    updateCleanUI();
+  }
+
+  const busy = isEm || s === 1 || s === 2 || s === 3 || s === 6;
+  const bm = document.getElementById('btn-mix');
+  if (bm) bm.disabled = busy;
+
+  if (d.tanks) {
+    ['r','g','b','w'].forEach(k => {
+      if (d.tanks[k] !== undefined) { tankLevels[k] = d.tanks[k]; setTank(k, d.tanks[k]); }
+    });
+    if (d.tanks.clean !== undefined) { tankLevels.clean = d.tanks.clean; setTank('c', d.tanks.clean); }
+  }
+  if (d.flowRates) { flowRates = d.flowRates; updateCalibRates(); }
+
+  const inProgress = (s === 1 || s === 2);
+  const isDone     = (s === 5);
+  document.getElementById('progress-panel').classList.toggle('on', inProgress || isDone);
+  if (inProgress || isDone) updateProgressUI(d);
+
+  updateActivePump(d.activePump || '');
+}
+
+function setTank(id, val) {
+  const b = document.getElementById('tank-' + id);
+  const p = document.getElementById('pct-' + id);
+  if (b) b.style.width = val + '%';
+  if (p) { p.textContent = val + '%'; p.classList.toggle('tank-low', val < 15); }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// PROGRESS
+// ════════════════════════════════════════════════════════════════════════
+function updateProgressUI(d) {
+  const pct    = d.progress || 0;
+  const remain = d.remainingMs || 0;
+  const active = d.activePump || '';
+  const step   = d.step || 0;
+  const total  = d.totalSteps || 0;
+  const vol    = d.totalMixMl || 0;
+  const isDone = d.state === 5;
+
+  const bar = document.getElementById('prog-bar');
+  bar.style.width = pct + '%';
+  bar.classList.toggle('done', isDone);
+
+  const lbl = document.getElementById('prog-pct-lbl');
+  lbl.textContent = isDone ? '✓ LISTO — activa limpieza manual cuando quieras' : pct + '%';
+  lbl.classList.toggle('done', isDone);
+
+  document.getElementById('pi-step').textContent   = total > 0 ? ` ${step}/${total}` : ' —';
+  document.getElementById('pi-label').textContent  = ' ' + (active || (isDone ? 'Completado' : '—'));
+  document.getElementById('pi-remain').textContent = remain > 0 ? ` ${Math.ceil(remain/1000)}s` : ' —';
+  document.getElementById('pi-vol').textContent    = vol > 0 ? ` ${vol} mL` : ' —';
+
+  let foundActive = false;
+  STAGES.forEach((s, i) => {
+    const dot  = document.getElementById('sdot-' + s.key);
+    const item = document.getElementById('stage-' + s.key);
+    const conn = document.getElementById('sconn-' + s.key);
+    if (!dot) return;
+    if (isDone) {
+      dot.classList.remove('active'); dot.classList.add('done');
+      item.classList.remove('active'); item.classList.add('done');
+      if (conn) conn.classList.add('done');
+    } else if (s.key === active) {
+      dot.classList.add('active'); dot.classList.remove('done');
+      item.classList.add('active'); item.classList.remove('done');
+      foundActive = true;
+    } else if (!foundActive) {
+      dot.classList.remove('active'); dot.classList.add('done');
+      item.classList.remove('active'); item.classList.add('done');
+      if (conn) conn.classList.add('done');
+    } else {
+      dot.classList.remove('active','done');
+      item.classList.remove('active','done');
+      if (conn) conn.classList.remove('done');
+    }
+  });
+}
+
+function updateActivePump(name) {
+  ['r','g','b','w','clean'].forEach(ch => document.getElementById('card-' + ch)?.classList.remove('running'));
+  const MAP = { rojo:'r', amarillo:'g', azul:'b', blanco:'w', limpieza:'clean' };
+  if (MAP[name]) document.getElementById('card-' + MAP[name])?.classList.add('running');
+  const SEQ_MAP = { rojo:'r', amarillo:'g', azul:'b', blanco:'w', extraccion:'ext' };
+  document.querySelectorAll('.seq-step').forEach(s => s.classList.remove('active'));
+  const key = SEQ_MAP[name];
+  if (key) document.getElementById('seq-' + key)?.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// MEZCLA
+// ════════════════════════════════════════════════════════════════════════
+// Sliders ahora con IDs fijos (sl-r, sl-g, sl-b, sl-w) → sin selector frágil
+function updateSlider(ch, val) {
+  document.getElementById('val-'  + ch).textContent = val;
+  document.getElementById('num-' + ch).value = val;
+  updatePreview();
+}
+function updateNum(ch, val) {
+  document.getElementById('val-' + ch).textContent = val;
+  const sl = document.getElementById('sl-' + ch);
+  if (sl) sl.value = Math.min(val, 200);
+  updatePreview();
+}
+function updatePreview() {
+  const r = +document.getElementById('num-r').value || 0;
+  const g = +document.getElementById('num-g').value || 0;
+  const b = +document.getElementById('num-b').value || 0;
+  const w = +document.getElementById('num-w').value || 0;
+  const total = r + g + b + w || 1;
+  const rr = Math.min(255, Math.round(((r + g) * 255) / total) + w);
+  const gg = Math.min(255, Math.round((g * 255) / total) + w);
+  const bb = Math.min(255, Math.round((b * 255) / total) + w);
+  const hex = '#' + [rr,gg,bb].map(v => Math.min(255,v).toString(16).padStart(2,'0')).join('');
+  const box = document.getElementById('preview-box');
+  box.style.background = hex;
+  box.setAttribute('data-hex', hex.toUpperCase());
+  document.getElementById('cmd-preview').textContent = JSON.stringify({ cmd:'mix', r, g, b, w });
+  validateTanks(r, g, b, w);
+}
+
+function validateTanks(r, g, b, w) {
+  const issues = [];
+  [
+    { ml:r, key:'r',     name:'Rojo'     },
+    { ml:g, key:'g',     name:'Amarillo' },
+    { ml:b, key:'b',     name:'Azul'     },
+    { ml:w, key:'w',     name:'Blanco'   },
+  ].forEach(m => {
+    if (m.ml <= 0) return;
+    const available = (tankLevels[m.key] / 100) * TANK_CAP_ML;
+    if (m.ml > available)
+      issues.push(`${m.name}: necesitas ${m.ml} mL, disponibles ≈${available.toFixed(0)} mL (${tankLevels[m.key]}%)`);
+  });
+  const alert = document.getElementById('val-alert');
+  if (issues.length > 0) {
+    alert.classList.add('on');
+    alert.innerHTML = '⚠ ADVERTENCIA DE TANQUE:<br>' + issues.join('<br>');
+  } else {
+    alert.classList.remove('on');
+  }
+}
+
+function sendMix() {
+  const r = +document.getElementById('num-r').value || 0;
+  const g = +document.getElementById('num-g').value || 0;
+  const b = +document.getElementById('num-b').value || 0;
+  const w = +document.getElementById('num-w').value || 0;
+  if (r + g + b + w === 0) { log('err', 'Ingresa al menos un volumen > 0'); return; }
+  wsSend(JSON.stringify({ cmd:'mix', r, g, b, w }));
+}
+function resetSliders() {
+  ['r','g','b','w'].forEach(ch => {
+    document.getElementById('num-' + ch).value = 0;
+    document.getElementById('val-' + ch).textContent = 0;
+    const sl = document.getElementById('sl-' + ch);
+    if (sl) sl.value = 0;
+  });
+  updatePreview();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// RECETAS — con ID aleatorio, operario, fecha y hora
+// ════════════════════════════════════════════════════════════════════════
+function getRecipes() {
+  try { return JSON.parse(localStorage.getItem('mezclador_recipes') || '[]'); } catch { return []; }
+}
+function setRecipes(arr) { localStorage.setItem('mezclador_recipes', JSON.stringify(arr)); }
+
+function saveRecipe() {
+  const r = +document.getElementById('num-r').value || 0;
+  const g = +document.getElementById('num-g').value || 0;
+  const b = +document.getElementById('num-b').value || 0;
+  const w = +document.getElementById('num-w').value || 0;
+  if (r + g + b + w === 0) { log('warn', 'No hay volumen configurado para guardar'); return; }
+
+  const nameInput = document.getElementById('recipe-name-input');
+  const now  = new Date();
+  const pad  = n => String(n).padStart(2,'0');
+  const date = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const id   = genMixID();   // ID aleatorio MX-XXXX
+  const name = nameInput.value.trim() || `Mezcla ${time}`;
+  const hex  = document.getElementById('preview-box').getAttribute('data-hex');
+  const op   = operario || '—';
+
+  const arr = getRecipes();
+  arr.unshift({ id, name, r, g, b, w, hex, date, time, operario: op, ts: now.toISOString() });
+  setRecipes(arr);
+  nameInput.value = '';
+  log('ok', `Mezcla "${name}" guardada · ID: ${id} · Op: ${op}`);
+  renderRecipes();
+}
+
+function renderRecipes() {
+  const arr  = getRecipes();
+  const list = document.getElementById('recipe-list');
+  document.getElementById('recipe-count').textContent = `${arr.length} mezcla${arr.length !== 1 ? 's' : ''}`;
+  if (arr.length === 0) {
+    list.innerHTML = '<div class="recipe-empty">// No hay mezclas guardadas aún.<br>Configura una mezcla y usa "Guardar Mezcla".</div>';
+    return;
+  }
+  list.innerHTML = arr.map((rx, i) => {
+    const total = rx.r + rx.g + rx.b + rx.w;
+    return `
+      <div class="recipe-item" onclick="loadRecipe(${i})">
+        <div class="recipe-swatch" style="background:${rx.hex}"></div>
+        <div class="recipe-info">
+          <div class="recipe-name">
+            <span class="recipe-id-badge">${rx.id || '—'}</span>${rx.name}
+          </div>
+          <div class="recipe-meta">
+            ${rx.date || '—'} ${rx.time || '—'} · Op: ${rx.operario || '—'} · R:${rx.r} G:${rx.g} B:${rx.b} W:${rx.w} mL · total: ${total} mL
+          </div>
+        </div>
+        <div class="recipe-actions">
+          <button class="btn btn-success" style="padding:6px 12px;font-size:11px" onclick="event.stopPropagation();loadAndMix(${i})">▶</button>
+          <button class="btn btn-danger"  style="padding:6px 12px;font-size:11px" onclick="event.stopPropagation();deleteRecipe(${i})">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function loadRecipe(i) {
+  const rx = getRecipes()[i];
+  if (!rx) return;
+  ['r','g','b','w'].forEach(k => {
+    document.getElementById('num-' + k).value = rx[k] || 0;
+    document.getElementById('val-' + k).textContent = rx[k] || 0;
+    const sl = document.getElementById('sl-' + k);
+    if (sl) sl.value = Math.min(rx[k] || 0, 200);
+  });
+  updatePreview();
+  document.getElementById('recipe-name-input').value = rx.name;
+  showTab('mezcla', document.querySelector('.tab:nth-child(2)'));
+  log('ok', `Mezcla "${rx.name}" cargada · ID: ${rx.id || '—'}`);
+}
+function loadAndMix(i) { loadRecipe(i); setTimeout(sendMix, 200); }
+function deleteRecipe(i) {
+  const arr = getRecipes();
+  const name = arr[i]?.name || '';
+  arr.splice(i, 1); setRecipes(arr); renderRecipes();
+  log('info', `Mezcla "${name}" eliminada`);
+}
+function clearAllRecipes() {
+  if (!confirm('¿Borrar todas las mezclas guardadas?')) return;
+  setRecipes([]); renderRecipes();
+  log('warn', 'Todas las mezclas eliminadas');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// CALIBRACIÓN
+// ════════════════════════════════════════════════════════════════════════
+function updateCalibRates() {
+  PUMP_DEF.forEach((p, i) => {
+    const el = document.getElementById(`cr-rate-${i}`);
+    if (el) el.textContent = flowRates[i].toFixed(3);
+  });
+}
+function startCalibPulse(i) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { log('err', 'No conectado'); return; }
+  const btn   = document.getElementById(`cr-pulse-btn-${i}`);
+  const timer = document.getElementById(`cr-timer-${i}`);
+  btn.disabled = true;
+  timer.classList.add('on');
+  let t = CALIB_DURATION_S;
+  timer.textContent = t;
+  if (calibState[i].timerInterval) clearInterval(calibState[i].timerInterval);
+  calibState[i].timerInterval = setInterval(() => {
+    t--;
+    timer.textContent = t;
+    if (t <= 0) {
+      clearInterval(calibState[i].timerInterval);
+      calibState[i].timerInterval = null;
+      timer.textContent = '✓';
+      setTimeout(() => { timer.classList.remove('on'); btn.disabled = false; }, 1500);
+    }
+  }, 1000);
+  wsSend(JSON.stringify({ cmd:'calibPulse', pump:i }));
+  log('ok', `Pulso calibración bomba ${PUMP_DEF[i].name} (${CALIB_DURATION_S}s)`);
+}
+function onCalibDone(pumpIdx) {
+  const timer = document.getElementById(`cr-timer-${pumpIdx}`);
+  if (!timer) return;
+  if (calibState[pumpIdx].timerInterval) {
+    clearInterval(calibState[pumpIdx].timerInterval);
+    calibState[pumpIdx].timerInterval = null;
+  }
+  timer.textContent = '✓ LISTO';
+  log('ok', `Pulso bomba ${PUMP_DEF[pumpIdx].name} completado — mide los mL`);
+}
+function addCalibRun(i) {
+  const inp = document.getElementById(`cr-ml-${i}`);
+  const ml  = parseFloat(inp.value);
+  if (isNaN(ml) || ml <= 0) { log('err', 'Ingresa un valor de mL válido'); return; }
+  calibState[i].runs.push(ml);
+  inp.value = '';
+  renderCalibRuns(i);
+}
+function renderCalibRuns(i) {
+  const runs    = calibState[i].runs;
+  const row     = document.getElementById(`cr-runs-${i}`);
+  const avg     = document.getElementById(`cr-avg-${i}`);
+  const saveBtn = document.getElementById(`cr-save-btn-${i}`);
+  if (runs.length === 0) { row.innerHTML = ''; avg.textContent = ''; saveBtn.disabled = true; return; }
+  const mean = runs.reduce((a,b) => a+b, 0) / runs.length;
+  row.innerHTML = runs.map((v, j) => {
+    const mlPerSec = v / CALIB_DURATION_S;
+    const dev = Math.abs(v - mean) / mean;
+    const isOutlier = runs.length > 1 && dev > OUTLIER_THRESHOLD;
+    return `<div class="calib-run-badge ${isOutlier ? 'warn' : 'ok'}">
+      Prueba ${j+1}<span>${v.toFixed(1)} mL</span>${mlPerSec.toFixed(3)} mL/s${isOutlier ? '<br>⚠ outlier':''}
+    </div>`;
+  }).join('');
+  const mlPerSec = mean / CALIB_DURATION_S;
+  avg.textContent = `Prom: ${mean.toFixed(1)} mL → ${mlPerSec.toFixed(4)} mL/s`;
+  saveBtn.disabled = false;
+}
+function saveCalib(i) {
+  const runs = calibState[i].runs;
+  if (runs.length === 0) return;
+  const mean     = runs.reduce((a,b) => a+b, 0) / runs.length;
+  const mlPerSec = parseFloat((mean / CALIB_DURATION_S).toFixed(4));
+  flowRates[i]   = mlPerSec;
+  document.getElementById(`cr-rate-${i}`).textContent = mlPerSec.toFixed(3);
+  wsSend(JSON.stringify({ cmd:'setCalib', pump:i, mlPerSec }));
+  log('ok', `Calibración bomba ${PUMP_DEF[i].name}: ${mlPerSec} mL/s → ESP32`);
+}
+function resetCalib(i) {
+  calibState[i] = { runs:[], phase:'idle', timerInterval:null };
+  renderCalibRuns(i);
+  const timer = document.getElementById(`cr-timer-${i}`);
+  if (timer) { timer.classList.remove('on'); timer.textContent = CALIB_DURATION_S; }
+  document.getElementById(`cr-pulse-btn-${i}`).disabled = false;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// INDIVIDUAL
+// ════════════════════════════════════════════════════════════════════════
+function sendInd(ch) {
+  const vol = +document.getElementById('ind-' + ch + '-vol').value || 20;
+  const obj = { cmd:'mix', r:0, g:0, b:0, w:0 };
+  obj[ch] = vol;
+  const json = JSON.stringify(obj);
+  document.getElementById('ind-' + ch + '-prev').textContent = json;
+  wsSend(json);
+}
+function sendIndExt() {
+  const vol  = +document.getElementById('ind-ext-vol').value || 50;
+  const json = JSON.stringify({ cmd:'extract', volume:vol });
+  document.getElementById('ind-ext-prev').textContent = json;
+  wsSend(json);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// CONSOLA
+// ════════════════════════════════════════════════════════════════════════
+function sendRaw() {
+  const v = document.getElementById('cmd-raw').value.trim();
+  if (!v) return;
+  wsSend(v);
+  document.getElementById('cmd-raw').value = '';
+}
+function log(type, msg) {
+  const box = document.getElementById('console-box');
+  const ts  = new Date().toLocaleTimeString('es-CO', { hour12:false });
+  const pre = { tx:'[TX]', rx:'[RX]', err:'[ERR]', info:'[--]', ok:'[OK]', warn:'[!!]' }[type] || '[--]';
+  const div = document.createElement('div');
+  div.className = 'log-' + type;
+  div.textContent = `${ts} ${pre} ${msg}`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  while (box.children.length > 400) box.removeChild(box.firstChild);
+}
+function clearConsole() { document.getElementById('console-box').innerHTML = ''; }
+
+// ════════════════════════════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════════════════════════════
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'recetas') renderRecipes();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════════
+window.onload = () => {
+  buildStagesUI();
+  buildCalibUI();
+  loadOperario();
+  updatePreview();
+  renderRecipes();
+  log('ok', 'Interfaz v5 lista · Limpieza manual · ID aleatorio · Operario persistente');
+};
+</script>
+</body>
+</html>
