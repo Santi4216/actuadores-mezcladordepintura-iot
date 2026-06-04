@@ -107,7 +107,7 @@ bool cleanManualActive = false;
 // CONTROL DE ACTUADORES
 // ──────────────────────────────────────────────────────────────────────────────
 void pumpOff(uint8_t i) {
-  ledcWrite(LEDC_CH(i), 0);
+  ledcWrite(pumps[i].en, 0);
   digitalWrite(pumps[i].in1, LOW);
   digitalWrite(pumps[i].in2, LOW);
 }
@@ -115,7 +115,7 @@ void pumpOff(uint8_t i) {
 void pumpOn(uint8_t i) {
   digitalWrite(pumps[i].in1, HIGH);
   digitalWrite(pumps[i].in2, LOW);
-  ledcWrite(LEDC_CH(i), 255);
+  ledcWrite(pumps[i].en, 255);
 }
 
 void agitadorOn() {
@@ -597,3 +597,4 @@ void loop() {
     }
   }
 }
+
