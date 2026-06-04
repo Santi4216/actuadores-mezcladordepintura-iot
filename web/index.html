@@ -272,9 +272,110 @@ input:focus { border-color:var(--accent); }
   .stages-row { gap:3px; }
   .stage-connector { width:8px; }
 }
-</style>
+
+/* ══ PIN AUTH ══ */
+#pin-overlay {
+  position:fixed; inset:0; z-index:999;
+  background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:0;
+}
+#pin-overlay::before {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,.012) 2px, rgba(0,212,255,.012) 4px);
+  pointer-events:none; z-index:0;
+}
+#pin-overlay::after {
+  content:'';
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(0,212,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,.025) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none; z-index:0;
+}
+.pin-box {
+  position:relative; z-index:1;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-top:2px solid var(--accent);
+  padding:40px 48px;
+  clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,0 100%);
+  display:flex; flex-direction:column; align-items:center; gap:24px;
+  min-width:320px;
+  animation:fadeIn .4s ease both;
+}
+.pin-logo { font-size:28px; font-weight:700; letter-spacing:3px; color:#fff; }
+.pin-logo span { color:var(--accent); }
+.pin-sub { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--dim); letter-spacing:2px; text-transform:uppercase; }
+.pin-dots { display:flex; gap:12px; }
+.pin-dot {
+  width:14px; height:14px; border-radius:50%;
+  border:2px solid var(--border2);
+  background:transparent;
+  transition:all .2s;
+}
+.pin-dot.filled { background:var(--accent); border-color:var(--accent); box-shadow:0 0 8px var(--accent); }
+.pin-dot.err    { background:var(--danger); border-color:var(--danger); box-shadow:0 0 8px var(--danger); animation:shake .3s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+.pin-keypad { display:grid; grid-template-columns:repeat(3, 64px); gap:10px; }
+.pin-key {
+  height:56px;
+  background:var(--bg);
+  border:1px solid var(--border2);
+  color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+  font-size:20px; font-weight:700;
+  cursor:pointer;
+  border-radius:4px;
+  transition:all .15s;
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);
+}
+.pin-key:hover  { border-color:var(--accent); color:var(--accent); background:rgba(0,212,255,.07); }
+.pin-key:active { transform:scale(.94); }
+.pin-key.wide   { grid-column:span 2; }
+.pin-key.del    { color:var(--warn); border-color:var(--border); }
+.pin-error {
+  font-family:'Share Tech Mono',monospace; font-size:11px;
+  color:var(--danger); letter-spacing:1px; text-align:center;
+  min-height:16px;
+}
+.pin-blocked {
+  font-family:'Share Tech Mono',monospace; font-size:12px;
+  color:var(--danger); letter-spacing:1px; text-align:center;
+  animation:blink 1s infinite;
+}</style>
 </head>
 <body>
+<!-- ══ PANTALLA DE ACCESO POR PIN ══ -->
+<div id="pin-overlay">
+  <div class="pin-box">
+    <div class="pin-logo">MEZCLADOR <span>ESP32</span></div>
+    <div class="pin-sub">// acceso restringido — ingrese PIN</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-keypad" id="pin-keypad">
+      <button class="pin-key" onclick="pinPress('1')">1</button>
+      <button class="pin-key" onclick="pinPress('2')">2</button>
+      <button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button>
+      <button class="pin-key" onclick="pinPress('5')">5</button>
+      <button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button>
+      <button class="pin-key" onclick="pinPress('8')">8</button>
+      <button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key wide" onclick="pinPress('0')">0</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+  </div>
+</div>
+
 
 <div id="em-overlay"></div>
 <div class="wrap">
@@ -1243,6 +1344,66 @@ window.onload = () => {
   renderRecipes();
   log('ok', 'Interfaz v5 lista · Limpieza manual · ID aleatorio · Operario persistente');
 };
+
+// ════════════════════════════════════════════════════════════════════════
+// PIN AUTH
+// ════════════════════════════════════════════════════════════════════════
+const PIN_CORRECT  = '1234';
+const MAX_ATTEMPTS = 3;
+
+let pinBuffer   = '';
+let pinAttempts = 0;
+let pinBlocked  = false;
+
+function pinPress(d) {
+  if (pinBlocked) return;
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  updatePinDots();
+  if (pinBuffer.length === 4) {
+    setTimeout(checkPin, 150);
+  }
+}
+
+function pinDel() {
+  if (pinBlocked) return;
+  pinBuffer = pinBuffer.slice(0, -1);
+  updatePinDots();
+  document.getElementById('pin-error').textContent = '';
+}
+
+function updatePinDots() {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('pd' + i);
+    dot.classList.toggle('filled', i < pinBuffer.length);
+    dot.classList.remove('err');
+  }
+}
+
+function checkPin() {
+  if (pinBuffer === PIN_CORRECT) {
+    document.getElementById('pin-overlay').style.display = 'none';
+    return;
+  }
+  pinAttempts++;
+  pinBuffer = '';
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('pd' + i);
+    dot.classList.remove('filled');
+    dot.classList.add('err');
+  }
+  const remaining = MAX_ATTEMPTS - pinAttempts;
+  if (pinAttempts >= MAX_ATTEMPTS) {
+    pinBlocked = true;
+    document.getElementById('pin-keypad').style.opacity = '0.3';
+    document.getElementById('pin-keypad').style.pointerEvents = 'none';
+    document.getElementById('pin-error').innerHTML =
+      '<span class="pin-blocked">⛔ ACCESO BLOQUEADO — recarga la página para reintentar</span>';
+  } else {
+    document.getElementById('pin-error').textContent =
+      `PIN incorrecto — ${remaining} intento${remaining !== 1 ? 's' : ''} restante${remaining !== 1 ? 's' : ''}`;
+  }
+}
 </script>
 </body>
 </html>
