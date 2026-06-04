@@ -33,7 +33,6 @@ Preferences prefs;
 // ──────────────────────────────────────────────────────────────────────────────
 #define LEDC_FREQ  5000
 #define LEDC_BITS  8
-#define LEDC_CH(i) (i)
 
 #define PIN_AGITADOR 2  // GPIO 2 (válido en WROOM 32, sin conflictos UART)
 
@@ -516,8 +515,7 @@ void setup() {
 
   // Setup LEDC (PWM) para las 6 bombas
   for (int i = 0; i < 6; i++) {
-    ledcSetup(LEDC_CH(i), LEDC_FREQ, LEDC_BITS);      // WROOM 32 v2.x compatible
-    ledcAttachPin(pumps[i].en, LEDC_CH(i));
+    ledcAttach(pumps[i].en, LEDC_FREQ, LEDC_BITS);  // ESP32 Core v3.x
     pinMode(pumps[i].in1, OUTPUT);
     pinMode(pumps[i].in2, OUTPUT);
     pumpOff(i);
@@ -597,4 +595,5 @@ void loop() {
     }
   }
 }
+
 
