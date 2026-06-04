@@ -433,14 +433,13 @@ Distribuido bajo la licencia MIT. Ver [`LICENSE`](LICENSE) para más informació
 ## 👨‍💻 Autor
 
 **David Santiago García**  
-Proyecto Final — Actuadores y Laboratorio, 8vo semestre  
+Proyecto Final — Actuadores y Laboratorio, 6to semestre  
 Universidad Militar Nueva Granada · 2026
 
 [![GitHub](https://img.shields.io/badge/GitHub-Santi4216-181717?logo=github)](https://github.com/Santi4216)
 
 ---
 
-## 🙏 Agradecimientos
 
 - [WebSocketsServer](https://github.com/Links2004/arduinoWebSockets) — Markus Sattler
 - [ArduinoJson](https://arduinojson.org/) — Benoît Blanchon
