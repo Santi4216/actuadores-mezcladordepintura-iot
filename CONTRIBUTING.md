@@ -39,8 +39,8 @@ Caso: Conectar a red doméstica para logging en cloud
 
 ```bash
 # Clonar repositorio
-git clone https://github.com/tu-usuario/mezclador-esp32.git
-cd mezclador-esp32
+git clone https://github.com/Santi4216/actuadores-mezcladordepintura-iot.git
+cd actuadores-mezcladordepintura-iot
 
 # Instalar dependencias Python
 pip install -r requirements.txt
