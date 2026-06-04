@@ -1,4 +1,4 @@
-# Mestizo ESP32 v5 — Dosificador de Pigmentos Automático
+# ESP32 v5 — Dosificador de Pigmentos Automático
 
 Proyecto profesional de IoT para automatización industrial de mezcla de colores.
 
@@ -203,11 +203,5 @@ Proyecto Final - Curso de Actuadores y Laboratorio
 - ESP32 Arduino Core (Espressif)
 
 ## 📞 Soporte
-
-- **Issues**: GitHub Issues
-- **Pull Requests**: Bienvenidos
 - **Documentación**: Ver README.md y CONTRIBUTING.md
 
----
-
-**¡Gracias por usar Mezclador ESP32!** 🎨

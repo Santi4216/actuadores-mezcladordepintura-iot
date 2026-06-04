@@ -1,491 +1,447 @@
-# 🎨 Mezclador ESP32 v5 — Sistema Automático de Dosificación de Pigmentos
+# 🎨 Mezclador Automático de Pintura — ESP32 IoT
+
+<div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Arduino IDE](https://img.shields.io/badge/Arduino%20IDE-v2.0%2B-00979D?logo=arduino)](https://www.arduino.cc/en/software)
-[![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab?logo=python)](https://www.python.org/)
-[![ESP32](https://img.shields.io/badge/ESP32-WROOM%2032-000000?logo=espressif)](https://www.espressif.com/)
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](#)
+[![Arduino IDE](https://img.shields.io/badge/Arduino%20IDE-v2.0%2B-00979D?logo=arduino&logoColor=white)](https://www.arduino.cc/en/software)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![ESP32](https://img.shields.io/badge/ESP32-WROOM%2032-E7352C?logo=espressif&logoColor=white)](https://www.espressif.com/)
+[![WebSocket](https://img.shields.io/badge/WebSocket-<50ms%20latency-brightgreen)](#)
+[![Status](https://img.shields.io/badge/Status-Production%20Ready-success)](#)
 
-**Proyecto de control IoT para automatización de mezcla de pigmentos con interfaz web en tiempo real.**
+**Sistema IoT completo para dosificación y mezcla automática de pigmentos, controlado en tiempo real desde una interfaz web sin dependencias externas.**
 
-## 🎯 Descripción
+[Ver demo](#-interfaz-web) · [Quick Start](#-quick-start) · [Arquitectura](#-arquitectura) · [GPIO Map](#-mapa-de-pines)
 
-Sistema completo de **dosificación automática de pigmentos** utilizando:
-- **Hardware**: ESP32 WROOM 32 + 6 bombas peristálticas + 1 agitador
-- **Comunicación**: WebSocket (WiFi AP) para control real-time
-- **Frontend**: HTML5/CSS3/JavaScript vanilla (responsive, zero dependencies)
-- **Backend**: Servidor Flask Python
-- **Control**: Máquina de estados no-bloqueante con millis()
-
-### Características Destacadas ⭐
-
-- ✅ **Mezcla automática** de 4 colores independientes
-- ✅ **Extracción automática** del volumen total
-- ✅ **Limpieza manual** desacoplada (sin timeout, operario controla)
-- ✅ **Calibración dinámica** por bomba (NVS persistente)
-- ✅ **Historial** persistente en LocalStorage (recetas guardadas)
-- ✅ **Interfaz responsive** con indicadores visuales en tiempo real
-- ✅ **Emergencia & Reset** robustos
-- ✅ **Control manual** de cada bomba por separado
-- ✅ **WebSocket protocol** para latencia <50ms
-- ✅ **Validación de parámetros** y protección contra overflow
+</div>
 
 ---
 
-## 🚀 Quick Start (5 minutos)
+## 📋 Tabla de contenidos
 
-### Requisitos
-- **Hardware**: ESP32 WROOM 32 con 6 bombas peristálticas + agitador
-- **Software**: Arduino IDE 2.0+, Python 3.8+, navegador Chrome/Firefox
+- [¿Qué hace este proyecto?](#-qué-hace-este-proyecto)
+- [Stack tecnológico](#-stack-tecnológico)
+- [Arquitectura](#-arquitectura)
+- [Quick Start](#-quick-start)
+- [Interfaz web](#-interfaz-web)
+- [Protocolo WebSocket](#-protocolo-websocket)
+- [Mapa de pines](#-mapa-de-pines)
+- [Calibración de bombas](#-calibración-de-bombas)
+- [Máquina de estados](#-máquina-de-estados)
+- [Troubleshooting](#-troubleshooting)
+- [Roadmap](#-roadmap)
 
-### Instalación en 3 pasos
+---
 
-#### 1️⃣ Cargar Firmware Arduino
+## 🔍 ¿Qué hace este proyecto?
 
-**Librerías necesarias** (instala en Arduino IDE → Sketch → Include Library):
-- `WebSocketsServer` (Markus Sattler v2.4.0+)
-- `ArduinoJson` (Benoit Blanchon v6.19.0+)
+Un ESP32 WROOM 32 controla **6 bombas peristálticas** y un agitador para dosificar pigmentos (Rojo, Amarillo, Azul, Blanco) con precisión de ±5%. El operario configura los volúmenes desde una interfaz web responsive —sin apps, sin cables— y el ESP32 ejecuta la secuencia de forma completamente autónoma.
 
-**Pasos:**
 ```
-1. Arduino IDE → Tools → Board → ESP32 Dev Module
-2. Abre: esp32_firmware/main/mezclador_pintura/mezclador_v5.ino
-3. Conecta ESP32 por USB
-4. Click Upload (Ctrl+U)
-5. Monitor Serial (115200 baud) debe mostrar:
-   ✓ Firmware listo — esperando conexión...
-   [WiFi AP] Mezclador-ESP32 | IP: 192.168.4.1
-   [WebSocket] Escuchando en puerto 81
+Operario ingresa volúmenes (R/G/B/W en mL)
+         ↓
+ Interfaz web envía JSON por WebSocket
+         ↓
+ ESP32 calcula tiempos y ejecuta secuencia
+         ↓
+ Bombas dosifican pigmento en orden
+         ↓
+ Extracción automática del volumen total
+         ↓
+ Mezcla lista ✓ — estado visible en tiempo real
 ```
 
-#### 2️⃣ Instalar Servidor Python
+### Características principales
+
+| Feature | Descripción |
+|---|---|
+| 🎨 **Mezcla automática** | 4 colores independientes, tiempos calculados por calibración |
+| 💧 **Limpieza manual** | Agua + agitador sin timeout, el operario decide cuándo parar |
+| ⚙️ **Calibración dinámica** | 3 pulsos por bomba, promedio con detección de outliers, guardado en NVS |
+| 📋 **Historial** | Recetas guardadas con ID único, operario y timestamp |
+| 🔴 **Emergencia** | Parada inmediata de todos los actuadores con un botón |
+| 🔌 **Sin cables** | Control por WiFi AP; no requiere router externo |
+
+---
+
+## 🛠 Stack tecnológico
+
+| Capa | Tecnología | Detalle |
+|---|---|---|
+| **Microcontrolador** | ESP32 WROOM 32 | WiFi AP mode, 19 GPIO configurados |
+| **Firmware** | Arduino C++ | No-blocking, `millis()`-based, sin `delay()` |
+| **Comunicación** | WebSocket (puerto 81) | Latencia <50 ms, protocolo JSON |
+| **Persistencia** | NVS (ESP32) | Calibración sobrevive reinicios |
+| **Frontend** | HTML5 / CSS3 / JS vanilla | 0 dependencias externas, responsive |
+| **Backend** | Flask (Python 3.8+) | Sirve el HTML estático |
+| **Librerías Arduino** | `WebSocketsServer`, `ArduinoJson`, `Preferences` | Versiones v2.4+, v6.19+, built-in |
+
+---
+
+## 🏗 Arquitectura
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Navegador del operario                │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │           Interfaz Web (index.html)              │    │
+│  │  Conexión · Mezcla · Calibración · Historial    │    │
+│  └───────────────────┬─────────────────────────────┘    │
+│                      │ HTTP (puerto 5000)                │
+└──────────────────────┼──────────────────────────────────┘
+                       │
+              ┌────────▼────────┐
+              │  Flask Server   │  ← python web_server.py
+              │  (web_server.py)│
+              └─────────────────┘
+                       
+┌─────────────────────────────────────────────────────────┐
+│                    WiFi AP: Mezclador-ESP32              │
+│                                                          │
+│   PC/Móvil ──WebSocket:81──▶ ESP32 WROOM 32            │
+│                               │                          │
+│            ┌──────────────────┼──────────────────┐      │
+│            │                  │                  │      │
+│         Bomba R            Bomba G            Bomba B   │
+│         Bomba W          Bomba Agua         Extracción  │
+│                            Agitador                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Quick Start
+
+### Requisitos previos
+
+- [Arduino IDE 2.0+](https://www.arduino.cc/en/software)
+- [Python 3.8+](https://www.python.org/downloads/)
+- ESP32 WROOM 32 + hardware (ver [mapa de pines](#-mapa-de-pines))
+- Navegador Chrome, Firefox o Edge
+
+### 1 — Cargar el firmware
+
+**Instalar el ESP32 core en Arduino IDE:**
+
+```
+File → Preferences → Additional Boards Manager URLs:
+https://dl.espressif.com/dl/package_esp32_index.json
+
+Tools → Board → Boards Manager → busca "esp32" → instala v2.x
+```
+
+**Instalar librerías:**
+
+```
+Sketch → Include Library → Manage Libraries
+  • WebSocketsServer  (Links2004)     v2.4.0+
+  • ArduinoJson       (B. Blanchon)   v6.19.0+
+```
+
+**Subir el sketch:**
+
+```
+1. Tools → Board → ESP32 Dev Module
+2. File → Open → esp32_firmware/mezclador_v5/mezclador_v5.ino
+3. Conecta el ESP32 por USB
+4. Ctrl+U  (Upload)
+```
+
+El Monitor Serial (115200 baud) debe mostrar:
+
+```
+[WiFi AP] Mezclador-ESP32 | IP: 192.168.4.1
+[WebSocket] Escuchando en puerto 81
+Firmware listo — esperando conexión...
+```
+
+### 2 — Iniciar el servidor web
 
 ```bash
-# Instalar dependencias
-pip install -r requirements.txt
+git clone https://github.com/Santi4216/actuadores-mezcladordepintura-iot.git
+cd actuadores-mezcladordepintura-iot
 
-# Iniciar servidor
+pip install -r requirements.txt
 python web_server.py
 ```
 
-**Salida esperada:**
+Salida esperada:
+
 ```
 🚀 Servidor web v5 iniciando...
 📱 Accede a: http://localhost:5000
  * Running on http://0.0.0.0:5000
 ```
 
-#### 3️⃣ Usar Interfaz
+### 3 — Conectar y mezclar
 
 ```
-1. Conecta tu PC/teléfono al WiFi: Mezclador-ESP32 (clave: mezclador123)
-2. Abre navegador: http://localhost:5000
-3. Click "CONECTAR" en pestaña Conexión
-4. Indicador pasa de 🔴 DESCONECTADO a 🟢 CONECTADO
-5. ¡Listo para mezclar!
-```
+1. Conecta tu PC/teléfono al WiFi: Mezclador-ESP32
+   Contraseña: mezclador123
 
----
+2. Abre el navegador: http://localhost:5000
 
-## 🎯 Características Principales
+3. Pestaña "Conexión" → click CONECTAR
+   Indicador: 🔴 DESCONECTADO → 🟢 CONECTADO
 
-### ✓ Mezcla Automática
-- 4 colores independientes: Rojo, Amarillo, Azul, Blanco
-- Cálculo automático de tiempos (basado en volumen + calibración)
-- Barra de progreso en tiempo real
-- Etapas marcadas visualmente
-
-### ✓ Extracción Automática
-- Activa después de mezcla completa
-- Extrae volumen total en tanque de salida
-- Tiempo calculado automáticamente
-
-### ✓ Limpieza Manual
-- Agua + Agitador simultáneamente
-- Sin timeout (operario controla duración)
-- Independiente del flujo de mezcla
-- Botón DETENER para finalizar
-
-### ✓ Calibración Dinámica
-- 3 pulsos de 10 segundos por bomba
-- Promediado automático con detección de outliers
-- Guardado en NVS (persistente entre reinicios)
-- Interfaz visual con badge de resultados
-
-### ✓ Historial Persistente
-- Guarda mezclas con ID (MX-XXXX), operario, timestamp
-- Almacenado en navegador (LocalStorage)
-- Carga recetas guardadas con 1 click
-- Exportar/visualizar color final
-
-### ✓ Emergencia & Seguridad
-- Botón "⚠ PARADA DE EMERGENCIA" (apaga todo)
-- Reset de sistema para recuperación
-- Indicadores visuales de estado
-- Validación de parámetros (sin overflow)
-
----
-
-## 📁 Estructura del Proyecto
-
-```
-Proyecto Final/
-├── README.md                        ← Este archivo
-├── requirements.txt                 ← Dependencias Python
-├── web_server.py                    ← Servidor Flask
-│
-├── web/
-│   └── index.html                   ← Interfaz web completa (25KB)
-│
-├── esp32_firmware/
-│   └── main/mezclador_pintura/
-│       └── mezclador_v5.ino         ← Firmware Arduino
-│
-├── config/                          ← Configuración (opcional)
-├── data/
-│   └── historial.json               ← Historial exportado (opcional)
-│
-└── .env.example                     ← Variables de entorno (template)
+4. Pestaña "Mezcla" → ingresa volúmenes → INICIAR
 ```
 
 ---
 
-## 🚀 Instalación Detallada
+## 💻 Interfaz web
 
-### Arduino IDE Setup
+La interfaz tiene **7 pestañas funcionales** servidas como un único archivo `index.html` sin frameworks:
 
-**1. Instalar ESP32 Core:**
-- File → Preferences
-- Additional Boards Manager URLs: `https://dl.espressif.com/dl/package_esp32_index.json`
-- Boards Manager → Busca "esp32" → Instala (2.0.0+)
-
-**2. Instalar Librerías:**
-```
-Sketch → Include Library → Manage Libraries
-Busca:
-  • WebSocketsServer (Links2004) v2.4.0+
-  • ArduinoJson (Benoit Blanchon) v6.19.0+
-→ Instala ambas
-```
-
-**3. Seleccionar Board:**
-- Tools → Board → esp32 → ESP32 Dev Module
-
-**4. Upload:**
-- Conecta ESP32 por USB
-- Tools → Port → Selecciona puerto COM
-- Sketch → Upload (o Ctrl+U)
-
-### Python Setup
-
-**Instalación:**
-```bash
-cd "ruta/al/Proyecto Final"
-pip install -r requirements.txt
-```
-
-**Dependencias:**
-```
-Flask>=3.0.0          # Servidor web
-Flask-Cors>=4.0.0     # CORS habilitado
-python-dotenv>=1.0.0  # Variables de entorno
-```
+| Pestaña | Función |
+|---|---|
+| **Conexión** | Estado WiFi/WebSocket, conectar/desconectar |
+| **Mezcla** | Configurar volúmenes R/G/B/W e iniciar proceso |
+| **Individual** | Probar cada bomba de forma independiente |
+| **Limpieza** | Control manual de bomba de agua + agitador |
+| **Calibración** | 3 pulsos por bomba, detección de outliers, guardar en NVS |
+| **Historial** | Recetas guardadas con ID, operario y timestamp |
+| **Consola** | Debug WebSocket en tiempo real (JSON crudo) |
 
 ---
 
-## 💻 Uso
+## 📡 Protocolo WebSocket
 
-### Iniciar Todo
+Todos los mensajes son JSON. El ESP32 escucha en `ws://192.168.4.1:81`.
 
-**Terminal 1 (Servidor Web):**
-```bash
-python web_server.py
+### Comandos (cliente → ESP32)
+
+```json
+// Iniciar mezcla
+{ "cmd": "mix", "r": 50, "g": 0, "b": 30, "w": 20 }
+
+// Extracción manual
+{ "cmd": "extract", "volume": 100 }
+
+// Limpieza manual
+{ "cmd": "cleanOn" }
+{ "cmd": "cleanOff" }
+
+// Calibración
+{ "cmd": "calibPulse", "pump": 0 }
+{ "cmd": "setCalib",   "pump": 0, "mlPerSec": 1.667 }
+
+// Control
+{ "cmd": "stop" }
+{ "cmd": "reset" }
+{ "cmd": "status" }
 ```
 
-**Terminal 2 (Navegador):**
-```
-Abre: http://localhost:5000
-```
+### Respuesta de estado (ESP32 → cliente)
 
-### Pestaña: Conexión
-- IP ESP32: `192.168.4.1` (default)
-- Puerto: `81`
-- Click "CONECTAR" cuando ESP32 esté encendido
-- Indicador debe mostrar 🟢 CONECTADO
-
-### Pestaña: Mezcla
-```
-1. Ingresa volúmenes (mL):
-   Rojo: 30
-   Amarillo: 0
-   Azul: 20
-   Blanco: 50
-
-2. Visualiza color en "Preview"
-
-3. Click "▶ INICIAR PROCESO"
-
-4. Observa progreso en tiempo real
-   - Barra de progreso
-   - Etapas (Rojo → Azul → Blanco → Extracción)
-   - Tiempo restante
+```json
+{
+  "state":       1,
+  "activePump":  "rojo",
+  "step":        2,
+  "totalSteps":  4,
+  "progress":    45,
+  "remainingMs": 8200,
+  "emergency":   false,
+  "cleanActive": false,
+  "totalMixMl":  100,
+  "flowRates":   [1.667, 1.667, 1.667, 1.667, 1.667, 2.0],
+  "tanks":       { "r": 100, "g": 100, "b": 100, "w": 100, "clean": 100 }
+}
 ```
 
-**Cálculo de tiempo:**
-- Rojo: 30mL ÷ 1.667 mL/s = 18s
-- Azul: 20mL ÷ 1.667 mL/s = 12s
-- Blanco: 50mL ÷ 1.667 mL/s = 30s
-- Extracción: 100mL ÷ 2.0 mL/s = 50s
-- **Total: ~110 segundos**
+### Estados del sistema (`state`)
 
-### Pestaña: Prueba Individual
-- Prueba cada bomba por separado
-- Ingresar volumen y click "ACTIVAR"
-- Verifica motor + LED correspondiente
-
-### Pestaña: Calibración
-```
-Para cada bomba:
-1. Pon vaso graduado debajo
-2. Click "▶ INICIAR PULSO (10s)"
-3. Espera a que complete
-4. Mide mL en vaso
-5. Ingresa valor
-6. Repite 2 veces más (3 pulsos)
-7. Click "💾 GUARDAR EN ESP32"
-
-El promedio se calcula automáticamente y se guarda en NVS
-```
-
-### Pestaña: Consola
-- Envía comandos JSON directamente
-- Debug de protocolo WebSocket
-- Útil para troubleshooting
+| Valor | Estado | Descripción |
+|---|---|---|
+| `0` | `IDLE` | Listo para recibir comandos |
+| `1` | `MIXING` | Secuencia de mezcla activa |
+| `2` | `EXTRACTING` | Extracción automática |
+| `3` | `CLEANING` | Limpieza manual activa |
+| `4` | `EMERGENCY` | Parada de emergencia |
+| `5` | `READY` | Mezcla completada exitosamente |
+| `6` | `CALIBRATING` | Pulso de calibración activo |
 
 ---
 
-## 🔧 Especificaciones Técnicas
+## 📌 Mapa de pines
 
-### Hardware
-| Componente | Especificación |
-|-----------|---|
-| Microcontrolador | ESP32 WROOM 32 (Xtensa 240MHz) |
-| WiFi | 802.11 b/g/n (AP mode) |
-| Bombas | 6 canales PWM independientes |
-| Agitador | 1 GPIO digital |
-| Almacenamiento | NVS (calibración) |
+| Bomba | IN1 | IN2 | EN (PWM) | Notas |
+|---|---|---|---|---|
+| Rojo | GPIO 12 | GPIO 13 | GPIO 14 | LEDC canal 0 |
+| Amarillo | GPIO 15 | GPIO 16 | GPIO 17 | LEDC canal 1 |
+| Azul | GPIO 18 | GPIO 8 | GPIO 9 | LEDC canal 2 |
+| Blanco | GPIO 10 | GPIO 11 | GPIO 6 | LEDC canal 3 |
+| Limpieza | GPIO 40 | GPIO 41 | GPIO 42 | Solo manual |
+| Extracción | GPIO 4 | GPIO 5 | GPIO 7 | LEDC canal 5 |
+| **Agitador** | — | — | **GPIO 2** | Digital simple |
 
-### GPIO Mapping (WROOM 32)
-```
-Bomba Rojo:       GPIO 12, 13, 14 (IN1, IN2, EN)
-Bomba Amarillo:   GPIO 15, 16, 17
-Bomba Azul:       GPIO 18, 8, 9
-Bomba Blanco:     GPIO 10, 11, 6
-Bomba Limpieza:   GPIO 40, 41, 42
-Bomba Extracción: GPIO 4, 5, 7
-Agitador:         GPIO 2
-
-Total: 19 pines configurados, sin conflictos
-```
-
-### Flow Rates (mL/s) — Defaults
-```
-Rojo:      1.667 mL/s
-Amarillo:  1.667 mL/s
-Azul:      1.667 mL/s
-Blanco:    1.667 mL/s
-Limpieza:  1.667 mL/s
-Extracción: 2.000 mL/s
-```
-*Se puede calibrar por bomba en interfaz*
-
-### Máquina de Estados
-```
-IDLE (0)        → Esperando comando
-MIXING (1)      → Bombeando pigmentos
-EXTRACTING (2)  → Extrayendo volumen total
-CLEANING (3)    → Limpieza manual (agua + agitador)
-EMERGENCY (4)   → Parada de emergencia
-READY (5)       → Listo para próxima mezcla
-CALIBRATING (6) → Calibración en progreso
-```
-
-### Protocolo WebSocket
-```
-URL: ws://192.168.4.1:81
-Formato: JSON (texto)
-
-Comandos soportados:
-• {"cmd":"mix","r":30,"g":0,"b":20,"w":50}      → Mezcla
-• {"cmd":"cleanOn"}                             → Limpieza ON
-• {"cmd":"cleanOff"}                            → Limpieza OFF
-• {"cmd":"calibPulse","pump":0}                 → Pulso calibración
-• {"cmd":"setCalib","pump":0,"val":1.667}       → Guardar calibración
-• {"cmd":"status"}                              → Estado actual
-• {"cmd":"stop"}                                → Para todo
-• {"cmd":"reset"}                               → Reset sistema
-• {"cmd":"extract"}                             → Extracción manual
-
-Respuesta: JSON con estado, tiempos, errores
-```
+> Todos los canales PWM usan LEDC a 5 kHz / 8 bits. PWM fijo en 255 (máxima velocidad); el volumen se controla por tiempo de activación según la calibración.
 
 ---
 
-## 📊 Verificación (Checklist)
+## ⚙️ Calibración de bombas
 
-- [ ] Monitor Serial muestra startup messages
-- [ ] Red WiFi `Mezclador-ESP32` visible
-- [ ] Puedo conectar con clave `mezclador123`
-- [ ] IP local es `192.168.4.1`
-- [ ] Servidor Flask inicia en puerto 5000
-- [ ] Interfaz carga en `http://localhost:5000`
-- [ ] Click "CONECTAR" → Indicador verde ✓
-- [ ] Prueba bomba roja individual (20mL ~12s)
-- [ ] Mezcla completa (30+0+20+50mL = 110s)
-- [ ] Limpieza manual funciona
-- [ ] Calibración guarda en NVS
-- [ ] Historial persiste en LocalStorage
-- [ ] Parada de emergencia detiene todo
+El sistema usa calibración volumétrica real para garantizar precisión de ±5%.
+
+**Proceso por bomba:**
+
+1. Abrir pestaña **Calibración**
+2. Hacer clic en **▶ PULSO** (la bomba corre 10 segundos)
+3. Medir los mL dispensados con una probeta e ingresar el valor
+4. Repetir 3 veces (el sistema promedia y detecta outliers)
+5. Hacer clic en **💾 GUARDAR EN ESP32**
+
+Los valores se persisten en la NVS del ESP32 (`namespace: "calib"`) y sobreviven a reinicios y cortes de energía.
+
+**Valores por defecto:** 1.667 mL/s para todas las bombas, 2.0 mL/s para extracción.
+
+---
+
+## 🔄 Máquina de estados
+
+```
+              ┌─────────────────────────────────────┐
+              │              S_IDLE (0)              │◀──────────┐
+              └──────────────┬──────────────────────┘           │
+                   cmd:mix   │          cmd:cleanOn              │
+                             ▼                                   │
+              ┌──────────────────────────┐                       │
+              │       S_MIXING (1)       │                       │
+              │  Bomba R → G → B → W    │                       │
+              └──────────────┬───────────┘                       │
+                             │ secuencia completa                │
+                             ▼                                   │
+              ┌──────────────────────────┐                       │
+              │     S_EXTRACTING (2)     │                       │
+              └──────────────┬───────────┘                       │
+                             │                                   │
+                             ▼                       cmd:reset   │
+              ┌──────────────────────────┐                       │
+              │       S_READY (5)        │                       │
+              └──────────────────────────┘                       │
+                                                                 │
+    cmd:stop → S_EMERGENCY (4) ─────────────────────────────────┘
+    cmd:cleanOn → S_CLEANING (3) ←→ cmd:cleanOff → S_IDLE
+    cmd:calibPulse → S_CALIBRATING (6) → S_IDLE (auto)
+```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### ESP32 no se ve en puertos Arduino
+<details>
+<summary><strong>ESP32 no aparece en puertos del IDE</strong></summary>
 
-**Síntoma**: `No ports detected`
+- Verifica que el cable USB transfiere datos (no solo carga)
+- Instala el driver CH340: https://ch340.github.io/
+- Prueba otro puerto USB
 
-**Solución:**
-- Verifica USB cable (algunos no transfieren datos)
-- Instala driver CH340: https://ch340.github.io/
-- O prueba con puerto diferente
+</details>
 
-### WiFi AP no aparece
+<details>
+<summary><strong>WiFi "Mezclador-ESP32" no aparece</strong></summary>
 
-**Síntoma**: No ves red `Mezclador-ESP32`
+- Verifica en Monitor Serial que el upload fue exitoso
+- Reinicia el ESP32 (botón EN o desconectar/conectar USB)
+- Mantén presionado BOOT 5 s para recovery mode
 
-**Solución:**
-- [ ] Verifica firmware subió exitosamente (Monitor Serial)
-- [ ] Reinicia ESP32 (apaga/prende)
-- [ ] Check LED WiFi en placa
-- [ ] Restablece ESP32: hold BOOT 5s, suelta
+</details>
 
-### WebSocket no conecta
+<details>
+<summary><strong>WebSocket no conecta (indicador rojo permanente)</strong></summary>
 
-**Síntoma**: Interfaz muestra `DESCONECTADO` siempre
+```bash
+# Verifica conectividad
+ping 192.168.4.1
 
-**Solución:**
-```
-1. Verifica PC conectada a WiFi Mezclador-ESP32
-2. Ejecuta: ping 192.168.4.1 → debe responder
-3. Consola: abre Inspector Web (F12)
-4. Check logs (rojo = error WebSocket)
-5. Verifica puerto 81: netstat -an | findstr 192.168.4.1
+# Verifica puerto abierto
+netstat -an | findstr 192.168.4.1
 ```
 
-### Bomba no se activa
+Abre F12 en el navegador y revisa la consola para ver el error exacto del WebSocket.
 
-**Síntoma**: Motor no se mueve, LED no prende
+</details>
 
-**Solución:**
-- [ ] Verifica motor tiene alimentación (GND/VCC)
-- [ ] Check GPIO en `.ino` coincide con hardware
-- [ ] Prueba con "Prueba Individual" en interfaz
-- [ ] Verifica relé no está dañado
+<details>
+<summary><strong>Bomba no se activa</strong></summary>
 
-### Calibración no guarda
+- Verifica alimentación del motor (GND/VCC del driver)
+- Confirma que el GPIO en el `.ino` coincide con el hardware físico
+- Usa "Prueba Individual" en la interfaz para aislar el problema
+- Revisa que el relé o driver L298N no esté dañado
 
-**Síntoma**: Cierra ESP32, valores se resetean
+</details>
 
-**Solución:**
-- [ ] Verifica que clickeaste "💾 GUARDAR EN ESP32"
-- [ ] Monitor Serial debe mostrar `[NVS] guardando...`
-- [ ] NVS puede estar full: borra calibración anterior
+<details>
+<summary><strong>Calibración no persiste entre reinicios</strong></summary>
 
-### Mezcla muy rápida o lenta
+- Confirma que hiciste clic en **💾 GUARDAR EN ESP32** (no solo registrar el pulso)
+- Monitor Serial debe mostrar: `[NVS] Calibración guardada en NVS`
+- Si la NVS está llena, borra el namespace: `prefs.clear()` (temporal, en el `.ino`)
 
-**Síntoma**: Tiempo no coincide con esperado
-
-**Solución:**
-- Calibra las bombas (Pestaña "Calibración")
-- Verifica valores son realistas (1-3 mL/s)
-- Check que motor/bomba física está sana
+</details>
 
 ---
 
-## 📚 Archivos Clave
-
-| Archivo | Propósito |
-|---------|----------|
-| `web_server.py` | Servidor Flask (ejecutar primero) |
-| `web/index.html` | Interfaz web completa |
-| `esp32_firmware/main/mezclador_pintura/mezclador_v5.ino` | Firmware Arduino |
-| `requirements.txt` | Dependencias Python |
-| `.env.example` | Variables de entorno (opcional) |
-
----
-
-## 🔄 Flujo Operativo
+## 📁 Estructura del repositorio
 
 ```
-Usuario abre interfaz
-    ↓
-Click CONECTAR
-    ↓
-WebSocket conecta a ESP32
-    ↓
-Ingresa volúmenes (R, G, B, W)
-    ↓
-Click INICIAR PROCESO
-    ↓
-ESP32 inicia secuencia:
-  1. Bomba Rojo ON (18s)
-  2. Bomba Azul ON (12s)
-  3. Bomba Blanco ON (30s)
-  4. Bomba Extracción ON (50s)
-    ↓
-Interfaz muestra progreso en tiempo real
-    ↓
-Sistema se detiene automáticamente
-    ↓
-Estado: READY (listo para siguiente mezcla)
+actuadores-mezcladordepintura-iot/
+│
+├── esp32_firmware/
+│   └── mezclador_v5/
+│       └── mezclador_v5.ino       ← Firmware principal (~800 líneas)
+│
+├── web/
+│   └── index.html                 ← Interfaz web completa (7 pestañas, ~25 KB)
+│
+├── data/
+│   └── historial.json             ← Ejemplo de historial exportado
+│
+├── web_server.py                  ← Servidor Flask
+├── requirements.txt               ← Dependencias Python
+├── .env.example                   ← Variables de entorno (template)
+├── .gitignore
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+└── README.md
 ```
 
 ---
 
-## ⚙️ Configuración
+## 🗺 Roadmap
 
-### Variables de Entorno (.env)
+**v5.0** ✅ Completo y en producción
 
-Crear archivo `.env` en la raíz:
-```
-FLASK_HOST=0.0.0.0
-FLASK_PORT=5000
-FLASK_DEBUG=False
-ESP32_SSID=Mezclador-ESP32
-ESP32_PASSWORD=mezclador123
-ESP32_AP_IP=192.168.4.1
-ESP32_WS_PORT=81
-LOG_LEVEL=INFO
-```
-
-*Opcional: sin este archivo, usa defaults*
+**v6.0** — Planificado
+- [ ] WiFi Station mode (conectar a red doméstica)
+- [ ] Cloud logging con ThingSpeak o Firebase
+- [ ] Autenticación básica (usuario/contraseña)
+- [ ] Generación de reportes PDF
+- [ ] API REST + base de datos para historial persistente en servidor
+- [ ] App móvil (React Native)
 
 ---
 
-## 🎉 ¡Listo!
+## 📄 Licencia
 
-**Proyecto 100% funcional y listo para producción.**
-
-**Para empezar:**
-1. Carga firmware: `mezclador_v5.ino`
-2. Inicia servidor: `python web_server.py`
-3. Abre interfaz: `http://localhost:5000`
-4. Conecta y mezcla 🎨
+Distribuido bajo la licencia MIT. Ver [`LICENSE`](LICENSE) para más información.
 
 ---
 
-**Versión**: 5.0  
-**Última actualización**: Junio 2024  
-**Autor**: Proyecto Final - Actuadores y Lab  
-**Estado**: ✅ Completo y Validado
+## 👨‍💻 Autor
+
+**David Santiago García**  
+Proyecto Final — Actuadores y Laboratorio, 8vo semestre  
+Universidad Militar Nueva Granada · 2024
+
+[![GitHub](https://img.shields.io/badge/GitHub-Santi4216-181717?logo=github)](https://github.com/Santi4216)
+
+---
+
+## 🙏 Agradecimientos
+
+- [WebSocketsServer](https://github.com/Links2004/arduinoWebSockets) — Markus Sattler
+- [ArduinoJson](https://arduinojson.org/) — Benoît Blanchon
+- [ESP32 Arduino Core](https://github.com/espressif/arduino-esp32) — Espressif Systems

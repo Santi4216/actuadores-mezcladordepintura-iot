@@ -1,8 +1,3 @@
-// ════════════════════════════════════════════════════════════════════════════════
-// mezclador_v5.ino — ESP32 WROOM 32 (NO S3)
-// Flujo: MEZCLA → EXTRACCIÓN → LISTO (limpieza MANUAL por comando independiente)
-// Máquina de estados no bloqueante basada en millis()
-// PWM fijo a 255 — control de volumen solo por tiempo
 //
 // ── COMPATIBILIDAD WROOM 32 ─────────────────────────────────────────────────
 // ✓ Código compatible con Arduino IDE v2.x y ESP32 Arduino Core v2.x
