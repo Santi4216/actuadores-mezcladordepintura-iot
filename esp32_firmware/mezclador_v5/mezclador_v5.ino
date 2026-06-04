@@ -106,7 +106,7 @@ bool cleanManualActive = false;
 // CONTROL DE ACTUADORES
 // ──────────────────────────────────────────────────────────────────────────────
 void pumpOff(uint8_t i) {
-  ledcWrite(pumps[i].en, 0);
+  analogWrite(pumps[i].en, 0);
   digitalWrite(pumps[i].in1, LOW);
   digitalWrite(pumps[i].in2, LOW);
 }
@@ -114,7 +114,7 @@ void pumpOff(uint8_t i) {
 void pumpOn(uint8_t i) {
   digitalWrite(pumps[i].in1, HIGH);
   digitalWrite(pumps[i].in2, LOW);
-  ledcWrite(pumps[i].en, 255);
+  analogWrite(pumps[i].en, 255);
 }
 
 void agitadorOn() {
@@ -513,11 +513,12 @@ void setup() {
   // Cargar calibración desde NVS
   loadCalib();
 
-  // Setup LEDC (PWM) para las 6 bombas
+  // Setup LEDC (PWM) para las 6 bombas — API ESP32 Core v3.x
   for (int i = 0; i < 6; i++) {
-    ledcAttach(pumps[i].en, LEDC_FREQ, LEDC_BITS);  // ESP32 Core v3.x
+    pinMode(pumps[i].en,  OUTPUT);
     pinMode(pumps[i].in1, OUTPUT);
     pinMode(pumps[i].in2, OUTPUT);
+    analogWrite(pumps[i].en, 0);
     pumpOff(i);
   }
 
@@ -595,5 +596,8 @@ void loop() {
     }
   }
 }
+
+
+
 
 
