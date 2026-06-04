@@ -1,7 +1,7 @@
 //
 // ── COMPATIBILIDAD WROOM 32 ─────────────────────────────────────────────────
-// ✓ Código compatible con Arduino IDE v2.x y ESP32 Arduino Core v2.x
-// ✓ Usa ledcSetup() + ledcAttachPin() (ESTÁNDAR en WROOM 32)
+// ✓ Código compatible con Arduino IDE v2.x+ y ESP32 Arduino Core v3.x
+// ✓ Usa analogWrite() — compatible ESP32 Core v3.x (sin configuración de canal)
 // ✓ Pines validados para WROOM 32 (no usa GPIO 3 ni GPIO 46)
 // ✓ Sin conflictos UART
 //
@@ -31,9 +31,6 @@ Preferences prefs;
 // ──────────────────────────────────────────────────────────────────────────────
 // HARDWARE — Pines para ESP32 WROOM 32
 // ──────────────────────────────────────────────────────────────────────────────
-#define LEDC_FREQ  5000
-#define LEDC_BITS  8
-
 #define PIN_AGITADOR 2  // GPIO 2 (válido en WROOM 32, sin conflictos UART)
 
 struct Pump {
@@ -596,6 +593,7 @@ void loop() {
     }
   }
 }
+
 
 
 
